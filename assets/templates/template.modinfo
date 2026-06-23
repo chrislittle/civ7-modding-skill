@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal valid gameplay modinfo. Copy, rename the file, change the id/Name, and edit
+  the action groups. REMEMBER: version MUST be an integer (see references/modinfo.md).
+  Paths in <Item> are relative to this file's folder; <Item> order matters within a
+  group (load a table before files that reference it).
+-->
+<Mod id="REPLACE-ME-mod-id" version="1" xmlns="ModInfo">
+    <Properties>
+        <Name>REPLACE ME — Mod Name</Name>
+        <Description>What this mod does.</Description>
+        <Authors>Your Name</Authors>
+        <Package>Mod</Package>
+        <AffectsSavedGames>1</AffectsSavedGames>
+        <Version>1</Version>
+    </Properties>
+
+    <Dependencies>
+        <Mod id="base-standard" title="LOC_MODULE_BASE_STANDARD_NAME"/>
+    </Dependencies>
+    <References>
+        <Mod id="core" title="LOC_MODULE_CORE_NAME"/>
+    </References>
+
+    <ActionCriteria>
+        <Criteria id="always">
+            <AlwaysMet/>
+        </Criteria>
+        <Criteria id="age-antiquity">
+            <AgeInUse>AGE_ANTIQUITY</AgeInUse>
+        </Criteria>
+        <!-- add age-exploration / age-modern criteria as needed -->
+    </ActionCriteria>
+
+    <ActionGroups>
+        <!-- Localization is age-agnostic: load it always, low LoadOrder. -->
+        <ActionGroup id="text-all" scope="game" criteria="always">
+            <Properties><LoadOrder>100</LoadOrder></Properties>
+            <Actions>
+                <UpdateText>
+                    <Item>text/en_us/REPLACEMEText.xml</Item>
+                </UpdateText>
+            </Actions>
+        </ActionGroup>
+
+        <!-- Gameplay data for one Age. Projects first, then modifiers, then traditions. -->
+        <ActionGroup id="antiquity" scope="game" criteria="age-antiquity">
+            <Properties><LoadOrder>110</LoadOrder></Properties>
+            <Actions>
+                <UpdateDatabase>
+                    <Item>data/antiquity/projects.xml</Item>
+                    <Item>data/antiquity/modifiers.xml</Item>
+                    <Item>data/antiquity/traditions.xml</Item>
+                </UpdateDatabase>
+            </Actions>
+        </ActionGroup>
+    </ActionGroups>
+</Mod>

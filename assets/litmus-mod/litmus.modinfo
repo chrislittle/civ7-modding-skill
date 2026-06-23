@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  LITMUS MOD — proves your load/deploy pipeline works, independent of any modifiers.
+  It does exactly one thing: forces every map to have 20 natural wonders, which is
+  immediately visible at game start. Integer version, single AlwaysMet UpdateDatabase.
+
+  Use: deploy this with scripts/deploy-mod.ps1, enable in Add-Ons, start a NEW game.
+  - Effect shows up  -> your pipeline is fine; debug your real mod's content.
+  - Effect missing   -> environmental problem (deploy path / enable / version / new game).
+-->
+<Mod id="civ7-litmus-test" version="1" xmlns="ModInfo">
+    <Properties>
+        <Name>Civ VII Litmus Test</Name>
+        <Description>Pipeline probe: sets every map's natural wonder count to 20.</Description>
+        <Authors>civ7-modding skill</Authors>
+        <Package>Mod</Package>
+        <AffectsSavedGames>1</AffectsSavedGames>
+        <Version>1</Version>
+    </Properties>
+
+    <Dependencies>
+        <Mod id="base-standard" title="LOC_MODULE_BASE_STANDARD_NAME"/>
+    </Dependencies>
+
+    <ActionCriteria>
+        <Criteria id="always">
+            <AlwaysMet/>
+        </Criteria>
+    </ActionCriteria>
+
+    <ActionGroups>
+        <ActionGroup id="litmus" scope="game" criteria="always">
+            <Properties>
+                <LoadOrder>100</LoadOrder>
+            </Properties>
+            <Actions>
+                <UpdateDatabase>
+                    <Item>data/litmus.sql</Item>
+                </UpdateDatabase>
+            </Actions>
+        </ActionGroup>
+    </ActionGroups>
+</Mod>
