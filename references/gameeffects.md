@@ -197,6 +197,103 @@ tall/yield mods and have non-obvious quirks:
 > there is no `EFFECT_*GREAT_PERSON*` equivalent. Verify a mechanic exists in VII before
 > designing around it.
 
+### Appeal (tile desirability) — thresholds, requirements & effects
+
+Appeal is an **accumulated** plot score (NOT a static per-tile value): each **adjacent
+item of natural beauty** — forest, savannah woodland, sagebrush steppe, mangrove swamp,
+taiga, mountain, coast, navigable river, natural wonder — grants **+1 Appeal** to the tile.
+The thresholds and payouts are **engine-side** (not in any GlobalParameters table — don't
+look for a moddable cutoff), stated verbatim in the **Civilopedia**:
+`Base/modules/base-standard/text/en_us/Civilopedia_Concepts_Text.xml` (the "Appeal" concept):
+
+| Grade | Accumulated Appeal | Vanilla payout (improved **rural** tile) |
+|---|---|---|
+| Average | 0–2 | nothing |
+| **Charming** | **3–4** | +1 Happiness |
+| **Breathtaking** | **5+** | +2 Happiness |
+
+- The **Appeal value** lives on terrain/features in `Base/modules/base-standard/data/terrain.xml`
+  (+ the natural-wonder terrain files): ordinary natural-beauty features = **`Appeal="1"`**;
+  **natural wonders = `Appeal="6"`** → a single adjacent natural wonder alone clears Breathtaking
+  (≥5), which is why NW-adjacent tiles read as "always Breathtaking" in-game.
+- **`REQUIREMENT_PLOT_HAS_APPEAL`** — gate a plot-yield modifier on a tile's Appeal grade. Two
+  threshold args map directly to the grades:
+  - `UseAppealHappinessThreshold="true"` = **Charming (3+)** — the +1-Happiness tier.
+  - `UseAppealDoubleHappinessThreshold="true"` = **Breathtaking (5+)** — the +2 ("double") tier.
+    (That's the literal origin of the "double happiness" name.)
+- **Consume appeal** (reward yields on appealing tiles): `EFFECT_PLOT_ADJUST_YIELD` on
+  `COLLECTION_CITY_PLOT_YIELDS` (or `COLLECTION_PLAYER_PLOT_YIELDS`) + `REQUIREMENT_PLOT_HAS_APPEAL`.
+  Add `REQUIREMENT_PLOT_DISTRICT_CLASS` (`DistrictClass=RURAL`) to restrict to the rural ring.
+  Base proofs: `MOD_SHWEDAGON_ZEDI_DAW_TILE_APPEAL_SCIENCE` (RURAL + single/Charming),
+  `MOD_HEIAN_HOO_DO_HALL_APPEAL_YIELDS` (no district filter + double/Breathtaking, Cul/Prod/Happy).
+- **Grant appeal** (make wonders raise nearby Appeal): **`EFFECT_PLAYER_GRANT_WONDER_APPEAL`**
+  (arg `Amount`) — **new in 1.4.1 / Brush & Blade**, defined only in `DLC/heian/modules/data/`
+  (`WONDER_HOO_DO_HALL`). It is **player-scoped and wonder-generic** — Amount = appeal each of the
+  player's wonders radiates to surrounding tiles (so it *is* an "all wonders grant appeal" lever).
+  ⚠ It's the **only** appeal-*granting* effect — base 1.4.1 has none; Appeal otherwise comes only
+  from terrain/features. Verify it resolves with the Heian DLC **disabled** before relying on it
+  (engine effect, but the only on-disk definition ships in the DLC module).
+- **Adjacency variants** also key off appeal grade by name: `AdjacentCharmingAppeal="True"` /
+  `AdjacentBreathtakingAppeal="True"` on an `Adjacency_YieldChange` row (Heian Jinja/Jōbō proofs)
+  — an alternative to `REQUIREMENT_PLOT_HAS_APPEAL` when the bonus is a building adjacency.
+
+> **Custom activatable adjacency recipe (e.g. "+Happiness to buildings next to a Wonder").** Three pieces,
+> and the **table name on the activation row is a crash-class gotcha**:
+> 1. Define the rule in **`<Adjacency_YieldChanges>`**: `<Row ID="MyRule" YieldType="YIELD_HAPPINESS"
+>    YieldChange="1" TilesRequired="1" AdjacentDistrict="DISTRICT_WONDER"/>`.
+> 2. Register the activation row in **`<Constructible_WildcardAdjacencies>`** (NOT `Constructible_Adjacencies`):
+>    `<Row YieldChangeId="MyRule" RequiresActivation="true" ConstructibleClass="BUILDING"/>`. Using
+>    `Constructible_Adjacencies` throws **`table Constructible_Adjacencies has no column named ConstructibleClass`**,
+>    rolls back the *whole* UpdateDatabase action group it's in, and **crashes on load**. Base proof:
+>    `ExAttributeCultural01WonderHappiness` (Classical Revival) in `age-exploration/data/constructibles-shared.xml`.
+> 3. Turn it on with `EFFECT_CITY_ACTIVATE_CONSTRUCTIBLE_ADJACENCY` (arg `ConstructibleAdjacency="MyRule"`,
+>    `COLLECTION_PLAYER_CITIES`). It's binary (the rule's `YieldChange` is the magnitude). These `<Database>`-schema
+>    rows need their own data file, loaded BEFORE the modifier that activates them. **Keep that data file in its OWN
+>    UpdateDatabase action** (or a load-order that tolerates rollback) — if it shares the action group with your
+>    modifiers and errors, it takes them ALL down.
+> 4. **Wildcard vs class-restricted.** OMIT `ConstructibleClass` on the activation row → the adjacency applies to
+>    **every** constructible, buildings AND wonders = the **Machu Picchu** pattern (`MachuPikchuWildcardMountainCulture`,
+>    `AdjacentTerrain="TERRAIN_MOUNTAIN"` → all buildings gain Culture per adjacent mountain). With
+>    `ConstructibleClass="BUILDING"` it's buildings only. `AdjacentDistrict`/`AdjacentTerrain` picks what it keys off.
+> 5. **Scale per Age cleanly** (yields, so per-Age scaling is fine): define numbered rules (`MyRule1/2/3`, YieldChange
+>    1/2/3) and have each Age activate ONLY its own — a clean +1/+2/+3 with no cross-Age stacking, using only the
+>    proven ACTIVATE effect. (Avoid `EFFECT_CITY_ADJUST_ADJACENCY_FLAT_AMOUNT` to bump an *activated wildcard* — that
+>    combo is unverified; the numbered-rules approach sidesteps it.)
+
+> **Don't gate STATIC-WORLD effects on a per-Age node.** The physical world (terrain, features, wonders,
+> the Appeal they generate) persists unchanged across Age transitions. So a STRUCTURAL effect — "wonders
+> grant Appeal," "a building next to a Wonder gets Happiness," appeal-/terrain-based adjacencies — must not
+> be gated on a per-Age tech/civic node: it would blink **off at every Age rollover until re-research**,
+> though nothing in the world changed. Gate such effects on **durable** conditions (a settlement-count /
+> "tall" gate) or leave them **self-scoping** ("no wonder → no effect"), and keep them **binary** (population
+> size doesn't decide whether a wonder confers a benefit — no pop tiers). **Yields are the opposite** — yield
+> amounts legitimately change with tech/era, so node-gating + re-earning + scaling them per Age is correct.
+> See [[civ7-age-transition-static-functions]].
+
+> **Working impassable terrain — make mountains yield (no special civ).** Mountains are impassable/dead by default.
+> To reclaim them: (1) grant the base **faux improvement** via `EFFECT_PLAYER_GRANT_CONSTRUCTIBLE_UNLOCK`
+> (`ConstructibleType="IMPROVEMENT_INCA_MOUNTAIN"`) — it's `RequiresUnlock="true"` and **NOT civ-locked**, displays
+> in-game as **"Expedition Base"**, and despite its `Age="AGE_EXPLORATION"` tag it works in **all Ages** (Nepal grants
+> it from Antiquity: `MOD_NEPAL_IMPROVE_MOUNTAINS`, comment "reusing the same faux improvement"). Building it makes the
+> mountain a worked `DISTRICT_RURAL` tile. (2) Put yields ON the peak with `EFFECT_PLOT_ADJUST_YIELD` (see below) gated
+> `REQUIREMENT_PLOT_TERRAIN_TYPE_MATCHES`(`TerrainType=TERRAIN_MOUNTAIN`) + `REQUIREMENT_PLOT_DISTRICT_CLASS` inverse
+> (`CITYCENTER, URBAN, WONDER`) — mirrors the Inca Apus (`TRAIT_MOD_APUS_MOUNTAIN_FOOD`). **Alternative, no improvement
+> needed:** a **warehouse** yield `TerrainInCity="TERRAIN_MOUNTAIN"` pays per-mountain-in-city automatically (how
+> Modern grants +1 Happiness per mountain, `MOMountainTerrainHappiness`).
+
+> **`EFFECT_PLOT_ADJUST_YIELD` plot requirements** (subject = a plot; use the PLAYER-rooted `COLLECTION_PLAYER_PLOT_YIELDS`
+> so it survives the attach wrapper, NOT the city-context `COLLECTION_CITY_PLOT_YIELDS`). Stack any of:
+> `REQUIREMENT_PLOT_TERRAIN_TYPE_MATCHES` (`TerrainType`), `REQUIREMENT_PLOT_DISTRICT_CLASS` (`DistrictClass`, supports
+> `inverse`), `REQUIREMENT_PLOT_HAS_APPEAL`, and **`REQUIREMENT_PLOT_IS_HOMELANDS`** (bare; `inverse`=distant lands —
+> use it to hemisphere-scope a player-wide plot effect so it doesn't bleed across hemispheres). Comma-list `YieldType`
+> + one `Amount` applies that amount to each yield (Hoo-Do/Inca proofs).
+
+> **Gate gameplay on DISCOVERY, not just a tech.** `REQUIREMENT_PLAYER_DISCOVERED_NATURAL_WONDER` (no `FeatureType` =
+> *any* natural wonder; proven in-game by `MOUNT_EVEREST_REVEAL`) is a real in-game `OwnerRequirements` gate — an
+> effect switches on once the player discovers a natural wonder (an exploration unlock, not a tree unlock). It's a
+> one-way latch, so it doesn't blink at Age transitions. **NOT** the same as a civ **`<CivilizationUnlocks>`** entry —
+> that's META-progression (unlocking a civ for *future games*) and can't gate in-game modifiers.
+
 ## THE attach-wrapper rule
 
 This is the second-biggest silent killer (after the integer version).

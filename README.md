@@ -21,7 +21,7 @@ npx civ7-modding-skill --project
 Install straight from GitHub without an npm publish:
 
 ```bash
-npx github:<your-username>/civ7-modding-skill --global
+npx github:chrislittle/civ7-modding-skill --global
 ```
 
 Custom location:
