@@ -255,6 +255,10 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
 >    **every** constructible, buildings AND wonders = the **Machu Picchu** pattern (`MachuPikchuWildcardMountainCulture`,
 >    `AdjacentTerrain="TERRAIN_MOUNTAIN"` → all buildings gain Culture per adjacent mountain). With
 >    `ConstructibleClass="BUILDING"` it's buildings only. `AdjacentDistrict`/`AdjacentTerrain` picks what it keys off.
+>    **Water-keyed adjacency columns** (verified vs base data — AnjuvannamCoastGold, CandiBentarRiverCulture, AltarLake):
+>    `AdjacentTerrain="TERRAIN_COAST"` / `="TERRAIN_NAVIGABLE_RIVER"`, `AdjacentNavigableRiver="true"`, `AdjacentLake="true"`.
+>    (For per-tile *worked-yield* gates — as opposed to building adjacency — use the `EFFECT_PLOT_ADJUST_YIELD` water gates
+>    in the plot-requirements note below: `REQUIREMENT_PLOT_IS_RIVER`/`_IS_LAKE`/`_BIOME_TYPE_MATCHES`/`_FEATURE_TYPE_MATCHES`.)
 > 5. **Scale per Age cleanly** (yields, so per-Age scaling is fine): define numbered rules (`MyRule1/2/3`, YieldChange
 >    1/2/3) and have each Age activate ONLY its own — a clean +1/+2/+3 with no cross-Age stacking, using only the
 >    proven ACTIVATE effect. (Avoid `EFFECT_CITY_ADJUST_ADJACENCY_FLAT_AMOUNT` to bump an *activated wildcard* — that
@@ -280,6 +284,14 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
 > (`CITYCENTER, URBAN, WONDER`) — mirrors the Inca Apus (`TRAIT_MOD_APUS_MOUNTAIN_FOOD`). **Alternative, no improvement
 > needed:** a **warehouse** yield `TerrainInCity="TERRAIN_MOUNTAIN"` pays per-mountain-in-city automatically (how
 > Modern grants +1 Happiness per mountain, `MOMountainTerrainHappiness`).
+>
+> **Working the open OCEAN — the sea twin of the mountain reclaim** (verified in-game 2026-06-27). Ocean workability is
+> Age-dependent: **Antiquity** = coast/rivers/lakes/reefs workable but NOT open ocean; **Exploration** = open ocean
+> BLOCKED unless granted; **Modern** = all civs work ocean natively. To let a tall city work empty ocean in Exploration,
+> grant `IMPROVEMENT_HAWAII_FISHING_BOAT` via `EFFECT_PLAYER_GRANT_CONSTRUCTIBLE_UNLOCK` (`COLLECTION_OWNER`) — the literal
+> sea-twin of the `IMPROVEMENT_INCA_MOUNTAIN` grant (same effect/collection, sits a few lines away in Hawaii's
+> `TRAIT_MOD_HAWAII_IMPROVE_OCEAN`). It's a `DISTRICT_RURAL` improvement valid on `TERRAIN_OCEAN` with NO resource gate,
+> so it works empty ocean. Then `BIOME_MARINE` plot-yields pay the ocean half (coast was already paying in AQ).
 
 > **`EFFECT_PLOT_ADJUST_YIELD` plot requirements** (subject = a plot; use the PLAYER-rooted `COLLECTION_PLAYER_PLOT_YIELDS`
 > so it survives the attach wrapper, NOT the city-context `COLLECTION_CITY_PLOT_YIELDS`). Stack any of:
@@ -287,12 +299,35 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
 > `inverse`), `REQUIREMENT_PLOT_HAS_APPEAL`, and **`REQUIREMENT_PLOT_IS_HOMELANDS`** (bare; `inverse`=distant lands —
 > use it to hemisphere-scope a player-wide plot effect so it doesn't bleed across hemispheres). Comma-list `YieldType`
 > + one `Amount` applies that amount to each yield (Hoo-Do/Inca proofs).
+>
+> **Water plot gates** (verified in-game 2026-06-27; same `EFFECT_PLOT_ADJUST_YIELD` recipe, swap the terrain match):
+> `REQUIREMENT_PLOT_IS_RIVER` takes **`Navigable`** (navigable rivers) AND **`Minor`** (minor rivers) as args — one
+> requirement covers both river kinds; `REQUIREMENT_PLOT_IS_LAKE` (bare); `REQUIREMENT_PLOT_BIOME_TYPE_MATCHES`
+> (`BiomeType="BIOME_MARINE"`) = **coast AND ocean in one gate**; `REQUIREMENT_PLOT_FEATURE_TYPE_MATCHES` accepts a
+> **`FeatureClassType`** arg (e.g. `FEATURE_CLASS_AQUATIC` = all reefs/atolls in one rule) as well as a single
+> `FeatureType`; `REQUIREMENT_PLOT_IS_NATURAL_WONDER` (bare) = the plot is a natural wonder (scope to *water* NWs by also
+> requiring `BIOME_MARINE`, DLC-agnostic). Reqs in `SubjectRequirements` are AND-ed — separate water types = separate
+> modifiers, which lets each carry its own yield set + amount, and they STACK on a tile that matches several (e.g. a
+> reef in marine biome gets both rules — a deliberate premium-tile spike; add an `inverse` gate to de-dupe if unwanted).
 
 > **Gate gameplay on DISCOVERY, not just a tech.** `REQUIREMENT_PLAYER_DISCOVERED_NATURAL_WONDER` (no `FeatureType` =
 > *any* natural wonder; proven in-game by `MOUNT_EVEREST_REVEAL`) is a real in-game `OwnerRequirements` gate — an
 > effect switches on once the player discovers a natural wonder (an exploration unlock, not a tree unlock). It's a
 > one-way latch, so it doesn't blink at Age transitions. **NOT** the same as a civ **`<CivilizationUnlocks>`** entry —
 > that's META-progression (unlocking a civ for *future games*) and can't gate in-game modifiers.
+> ⚠ **"Discovered" ≠ "revealed" (confirmed in-game 2026-06-27).** The requirement needs the actual DISCOVERY event — a
+> unit reaching/adjacent the NW, firing the "discovered [X]" notification — NOT merely the tile being revealed by vision.
+> A turn-1 sighting of a natural wonder at the edge of vision does **not** satisfy it (base parallel: `MOUNT_EVEREST_REVEAL`
+> fires *"on discovery"*). If a discovery-gated effect "isn't firing," check the player has truly discovered (visited) a NW.
+
+> **Flat per-city "floor" yield gated on terrain/adjacency (Tonga pattern).** For a guaranteed once-per-city bonus
+> (e.g. "+yield just for being coastal"), gate a city-collection yield on **`REQUIREMENT_CITY_HAS_TERRAIN`**
+> (`TerrainType` + `Amount` = the city owns ≥Amount tiles of that terrain — clean, AND-combines with a tall gate) or, like
+> base Tonga, on **`REQUIREMENT_BUILDING_IS_ADJACENT_TO_X`** (`BuildingType` + `AdjacentTerrainTypes`, in a
+> `REQUIREMENTSET_TEST_ANY` to OR several buildings — but OR-sets don't AND cleanly with other reqs, so prefer
+> `CITY_HAS_TERRAIN`). Auto-scale the amount with `<Argument name="Amount" type="ScaleByGameAge" extra="100">1</Argument>`.
+> ⚠ **`EFFECT_CITY_ADJUST_YIELD` takes a SINGLE `YieldType`** (every base use does; e.g. `MOD_FOUNDER_BELIEF_DOMESTIC_FOOD`
+> / `_PRODUCTION` are split modifiers) — emit one modifier per yield. (`EFFECT_PLOT_ADJUST_YIELD` *does* take a comma list.)
 
 ## THE attach-wrapper rule
 

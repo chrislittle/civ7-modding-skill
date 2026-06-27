@@ -50,6 +50,11 @@ actually **Applied**: `powershell scripts/check-applied.ps1 <mod-id>` (or grep
     correct spelling is **`OnlyDistantlands`** (lowercase "l"); the wrong case parses with no
     error and silently never passes. (`OnlyHomelands` is camelCased normally.)
     → [gameeffects.md](gameeffects.md#scoping-by-hemisphere-homeland-vs-distant-lands)
+11. **`REQUIREMENT_PLAYER_DISCOVERED_NATURAL_WONDER` not satisfied — "discovered" ≠ "revealed."** A bonus gated on
+    discovering a natural wonder won't fire just because the NW tile is visible on the map. It needs the actual
+    DISCOVERY event (a unit reaching/adjacent the wonder → the "discovered [X]" notification). A turn-1 sighting at the
+    edge of vision is a *reveal*, not a discovery. Confirmed in-game; base parallel `MOUNT_EVEREST_REVEAL` fires *"on
+    discovery."* If testing, send a unit to actually visit a NW. → [gameeffects.md](gameeffects.md#requirements)
 
 ## Symptom: project doesn't appear in the city's build list
 
