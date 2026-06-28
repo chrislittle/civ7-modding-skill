@@ -68,6 +68,30 @@ actually **Applied**: `powershell scripts/check-applied.ps1 <mod-id>` (or grep
    id against `progression-trees-tech.xml`.
 4. **`CityOnly` vs settlement type** — a `CityOnly="true"` project won't show in a Town.
 
+## Symptom: my new building shows BLANK (no icon) in the build list
+
+The constructible has no icon mapping. Icons load via an **`<UpdateIcons>`** action (NOT `<UpdateDatabase>`)
+with `IconDefinitions` rows mapping the type → a `blp:` asset; you can reuse a base asset (no art needed).
+→ [constructibles.md](constructibles.md#icons-map-a-constructible-to-an-icon-reuse-an-existing-asset)
+
+## Symptom: my building's pop-out info panel shows the wrong / short text
+
+The constructible pop-out renders the **`Tooltip`** field, not `Description`. Put the player-facing
+"what it does" text in `LOC_..._TOOLTIP`. → [constructibles.md](constructibles.md#the-production-pop-out-renders-tooltip-not-description)
+
+## Symptom: I can't hide/disable a building based on player state (owns wonder X, has N cities)
+
+You can't — the `Constructibles` schema gates buildability only on physical placement + `RequiresUnlock`, with
+**no player-state requirement hook**. Conditional hiding needs a UI mod (JS production-list filter); in pure data,
+gate the building's *effect* (a `<Modifier>` requirement) instead, and accept the entry stays visible.
+→ [constructibles.md](constructibles.md#defining-a-new-building-the-minimum-table-set)
+
+## Symptom: wrong constructible age (e.g. treating Temple as Antiquity)
+
+Constructible ages are **not** guessable from the id (`BUILDING_TEMPLE` = Exploration, `BUILDING_MONUMENT` =
+Antiquity). Grep the generated [constructibles-catalog.md](constructibles-catalog.md) for the Age + Ageless flag
+before asserting one. Generate it via `python tools/gen-constructibles-catalog.py`.
+
 ## Symptom: game CRASHES on load / at map generation
 
 1. **`REQUIREMENT_PLAYER_HAS_X_SETTLEMENTS` (or other player-settlement requirement) in

@@ -35,6 +35,22 @@ npx civ7-modding-skill --dir /path/to/repo   # installs to /path/to/repo/.claude
 
 After installing, **restart Claude Code** (or reload) so it picks up the skill.
 
+## Update
+
+Re-run the same install command. The installer **wipes and re-copies** the skill folder (it `rm`s the
+target first), so you always get a clean replacement — including any files dropped upstream:
+
+```bash
+# npm registry — add @latest to bypass npx's cache and fetch the newest published version
+npx civ7-modding-skill@latest --global
+
+# …or straight from GitHub (pulls the current main)
+npx github:chrislittle/civ7-modding-skill --global
+```
+
+Use the same target you installed with (`--global`, `--project`, or `--dir <path>`), then **restart Claude
+Code** so it reloads the skill.
+
 ## Global vs project
 
 - **Global** (`~/.claude/skills/`) — the skill is available in every project on your machine. Best for a
@@ -44,17 +60,20 @@ After installing, **restart Claude Code** (or reload) so it picks up the skill.
 
 ## Generate the data references (first run)
 
-Three references — `references/effects-collections-catalog.md`, `references/display-names.md`,
-`references/progression-trees.md` — are **not bundled** (they're bulk extractions of the base game's own
-data/text). Generate them from your own installed copy of Civilization VII (one-time, and after each patch):
+Four references — `references/effects-collections-catalog.md`, `references/display-names.md`,
+`references/progression-trees.md`, `references/constructibles-catalog.md` — are **not bundled** (they're bulk
+extractions of the base game's own data/text, so they're never redistributed). Generate them from your own
+installed copy of Civilization VII (one-time, and after each game patch):
 
 ```bash
 python tools/gen-effects-catalog.py
-python tools/gen-names-trees.py
+python tools/gen-names-trees.py          # display-names.md + progression-trees.md
+python tools/gen-constructibles-catalog.py
 ```
 
 They auto-detect the install via `$CIV7_ROOT` → your Steam library folders (set `CIV7_ROOT` to override).
-Output lands in `references/`. Everything else in `references/` is authored and ships with the skill.
+Output lands in `references/` (and is `.gitignore`d so you never commit Firaxis data). Everything else in
+`references/` is authored and ships with the skill.
 
 ## License
 

@@ -168,6 +168,13 @@ tall/yield mods and have non-obvious quirks:
 - **`EFFECT_PLAYER_ADJUST_TRADE_CAPACITY`** — add player trade-route capacity. Args `Amount`
   + `MajorsOnly` (bool); `COLLECTION_OWNER`, works any Age. Like any player-level effect it
   **delivers through the standard attach wrapper** (below) — confirmed firing that way.
+- **`EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE`** — the **only** effect that puts a constructible on an
+  **already-occupied** tile (Destroy one, Create another in place — and **Create can be a WONDER**, the
+  only way to place a wonder without an empty tile). Args **`Destroy`** + **`Create`** only (no tile/city/
+  count arg); `COLLECTION_OWNER`, `permanent run-once`. ⚠ **It converts ALL the player's instances of the
+  `Destroy` type at once** (confirmed in-game: 2 of building X → 2 wonders) — so only ever name a type the
+  player has exactly one of. Base use = Golden-Age building upgrades (`BUILDING_ACADEMY`→`_EX`). See the
+  victory-wonder recycle pattern below.
 
 > **"GDP" (the Economic Victory metric) ≠ gold income.** It accrues per turn from *tracked*
 > sources — chiefly **resources assigned to cities** (+1 each) and **imported** resources
@@ -196,6 +203,50 @@ tall/yield mods and have non-obvious quirks:
 > system. When porting ideas from Civ VI (e.g. *Wide & Tall*), drop anything GPP-based —
 > there is no `EFFECT_*GREAT_PERSON*` equivalent. Verify a mechanic exists in VII before
 > designing around it.
+
+### Victory-wonder recycle: place a WONDER on an occupied tile (the "Foundations" pattern)
+
+Problem: wonders need an **empty** tile (constructibles.md), so a packed tall city can be unable to build a
+Modern **victory** wonder (`WONDER_WORLDS_FAIR`, `WONDER_MANHATTAN_PROJECT`). `EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE`
+is the fix, and the clean delivery is a **1-step self-converting building** (proven in-game 2026-06-28):
+
+1. Define a normal **"Foundations" BUILDING** (constructibles.md table set) — a building can overbuild an
+   **obsolete** district, which is the tile relief (normal play can't overbuild ageless buildings or place a
+   wonder on an occupied tile; the REPLACE below is the bypass). Gate its appearance on the **wonder's own
+   unlock node** via `ProgressionTreeNodeUnlocks`
+   (`KIND_CONSTRUCTIBLE`) so it only appears once you've earned the wonder normally — never a victory shortcut.
+2. Bind a convert modifier to that building via **`<ConstructibleModifiers>`** (the same hook the base game uses to
+   hang on-completion effects off a constructible, e.g. `MOD_MANHATTAN_PROJECT_GRANT_NUCLEAR_DEVICE`). On completion
+   it REPLACEs the building → the wonder, on that tile, with the full wonder cinematic:
+
+```xml
+<!-- GameEffects (e.g. modifiers.xml). NOT added to the attach wrapper - it's bound to the building, not the player. -->
+<Modifier id="MA_RECLAIM_WORLDS_FAIR" collection="COLLECTION_OWNER" effect="EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE" permanent="true" run-once="true">
+  <SubjectRequirements>
+    <Requirement type="REQUIREMENT_PLAYER_HAS_CONSTRUCTIBLE" inverse="true"><Argument name="ConstructibleType">WONDER_WORLDS_FAIR</Argument></Requirement>
+    <!-- + your tall gate (REQUIREMENT_PLAYER_HAS_X_SETTLEMENTS inverse) -->
+  </SubjectRequirements>
+  <Argument name="Destroy">BUILDING_MA_WORLDS_FAIR_SITE</Argument>
+  <Argument name="Create">WONDER_WORLDS_FAIR</Argument>
+</Modifier>
+```
+```xml
+<!-- Data (Database). Loads AFTER the GameEffects file in the action group so the FK resolves. -->
+<ConstructibleModifiers><Row ConstructibleType="BUILDING_MA_WORLDS_FAIR_SITE" ModifierId="MA_RECLAIM_WORLDS_FAIR"/></ConstructibleModifiers>
+```
+
+Key points / gotchas:
+- **Fire REPLACE from a building's `ConstructibleModifiers` (on completion) or from `ProjectCompletionModifiers`
+  — NOT from the game-start attach wrapper** (firing REPLACE at game start is a native crash; the base game only
+  fires REPLACE at Age transitions, when the constructibles already exist).
+- The **`Destroy` building must be unique** (you build exactly one) since REPLACE hits all instances of the type.
+  A capped/deliberate Foundations building you only build when needed satisfies this; the `inverse
+  REQUIREMENT_PLAYER_HAS_CONSTRUCTIBLE(the wonder)` guard prevents ever creating a second.
+- **Victory credit works:** the win checks owning the wonder (or completing a project whose `PrereqConstructible`
+  is the wonder, e.g. `PROJECT_OPERATION_IVY` for Military) — the engine can't tell a REPLACE-placed wonder from a
+  normally-built one. Confirmed in-game (Operation Ivy unlocked after a REPLACE-placed Manhattan Project).
+- Give the Foundations building the **wonder's own icon** (constructibles.md → Icons) and put its how-it-works text
+  in the building's **`Tooltip`** (the pop-out renders Tooltip, not Description).
 
 ### Appeal (tile desirability) — thresholds, requirements & effects
 
