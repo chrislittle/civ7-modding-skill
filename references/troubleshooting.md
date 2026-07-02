@@ -74,6 +74,22 @@ The constructible has no icon mapping. Icons load via an **`<UpdateIcons>`** act
 with `IconDefinitions` rows mapping the type → a `blp:` asset; you can reuse a base asset (no art needed).
 → [constructibles.md](constructibles.md#icons-map-a-constructible-to-an-icon-reuse-an-existing-asset)
 
+## Symptom: my custom UNIT's flag/icon is blank, or the selected-unit portrait square is black
+
+Three separate causes — work through them in order:
+1. **Icon registered only in `scope="game"`.** The unit-flag manager reads icon-name definitions from the
+   **shell** icon DB. Load `surveyor-icons.xml` in **both** a `scope="game"` and a `scope="shell"` group,
+   `criteria="always"`. Per-Age (`criteria="age-*"`) icon groups don't register at all.
+2. **Only a flag row, no FONTICON row.** The list/tooltip portrait uses a `Context="FONTICON" IconSize="64"`
+   row; add it alongside the default-context flag row.
+3. **The big selected-unit PANEL portrait is still black** even with icons + a correct `VisualRemap` — that
+   square is a **live 3D render of the unit's own art asset** (`live:/UNIT_TYPE`), which a brand-new unit
+   lacks; remaps can't alias it. Map + build-menu look fine; only that panel square is affected. Usually
+   accept it. → [custom-units.md](custom-units.md#icons-a-unit-needs-two-rows-in-both-scopes-from-an-always-group)
+
+Log note: `UI.log` records only **failed** resource loads — a *successful* icon load logs nothing, so
+"my blp was never requested" is NOT proof it didn't resolve. Don't diagnose from its absence.
+
 ## Symptom: my building's pop-out info panel shows the wrong / short text
 
 The constructible pop-out renders the **`Tooltip`** field, not `Description`. Put the player-facing
@@ -108,7 +124,12 @@ before asserting one. Generate it via `python tools/gen-constructibles-catalog.p
    override with the upsert verb — `<LocalizedText><Replace Tag="…" Language="en_US"><Text>…
    </Text></Replace></LocalizedText>` (the exact pattern base l10n files use). Use `<Row>` only
    for NEW tags. (This crash shows in **Modding.log**, not Database.log.)
-4. **Diagnosis tip:** a runtime crash leaves `Modding.log` *clean* (often ending
+4. **`VisualRemaps` loaded via `<UpdateDatabase>`.** Database.log: `no such table: VisualRemaps
+   … In XMLSerializer while updating table VisualRemaps from file …`. `VisualRemaps` isn't a
+   gameplay-DB table — it has its **own action**, `<UpdateVisualRemaps>`. Move the remap file out
+   of the `UpdateDatabase` list into an `UpdateVisualRemaps` action (an `always` group).
+   → [custom-units.md](custom-units.md#3d-model--the-live-render-portrait-visualremap--its-hard-limit)
+5. **Diagnosis tip:** a runtime crash leaves `Modding.log` *clean* (often ending
    "Successfully reconfigured game") with the process dying after — distinct from a
    load-exclusion failure where the mod simply never reaches "Applied."
    → [deploy-and-debug.md](deploy-and-debug.md#reading-the-logs)
