@@ -380,6 +380,15 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
 > ⚠ **`EFFECT_CITY_ADJUST_YIELD` takes a SINGLE `YieldType`** (every base use does; e.g. `MOD_FOUNDER_BELIEF_DOMESTIC_FOOD`
 > / `_PRODUCTION` are split modifiers) — emit one modifier per yield. (`EFFECT_PLOT_ADJUST_YIELD` *does* take a comma list.)
 
+> **`type="ScaleByGameAge" extra="100"` = the authored `Amount` is a PER-AGE INCREMENT** (it multiplies by the Age ordinal:
+> ×1 Antiquity, ×2 Exploration, ×3 Modern). So `Amount ...extra="100">2</Argument>` resolves to **2 / 4 / 6** across the three
+> Ages, not a flat 2. Calibrated against `MEMENTO_AMINA_KWALKWALI` (base `1` → player text reads literally "+1 Gold **per Age**").
+> The scaling is engine-compiled (no data/JS formula to read — confirm empirically like this). Two consequences: (1) works on
+> **negative** amounts too — base-game raze/conquer Influence penalties (`EFFECT_PLAYER_ADJUST_YIELD_PER_RAZED_SETTLEMENT` /
+> `..._PER_CONQUERED_CITY`, `-2`) are actually **−2/−4/−6** by Age; (2) to **offset or match** an age-scaled value you must use
+> the SAME `ScaleByGameAge extra="100"` — a flat counter only cancels Antiquity and drifts apart in later Ages. Some rows also
+> put `type="ScaleByGameAge"` on the `YieldType` argument (e.g. a golden-age memento) — same mechanism.
+
 ## THE attach-wrapper rule
 
 This is the second-biggest silent killer (after the integer version).
