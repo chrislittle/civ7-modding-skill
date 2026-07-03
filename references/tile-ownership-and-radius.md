@@ -20,7 +20,26 @@ still names a different city of yours; picking it transfers ownership.
 - Implication for modders: the eligibility rule (which owned tiles can be pulled,
   and the distance) lives in compiled C++. **You cannot change it from XML or JS.**
 
-## 2. The "3-hex limit" is an EXPANSION cap, NOT a working cap (corrected 2026-06-30)
+## 2. The "3-hex limit" is an EXPANSION cap, NOT a working cap (corrected 2026-06-30; ⚠ RE-CORRECTED 2026-07-03)
+
+> **2026-07-03 controlled FireTuner matrix (4 tiles, MA game) — the definitive model:**
+> `city.Growth.claimPlot({x,y})` is the engine's **full expansion primitive**, not a bare
+> ownership flip. Each call: claims the tile + attaches it to the city as **Rural** +
+> **auto-places the terrain-appropriate improvement** (vegetated→Woodcutter,
+> mountain→Expedition Base, resource→its real improvement e.g. Plantation, coastal
+> water→Fishing Boat) + the city collects the full tile yields **same turn**, including
+> all mod plot-modifiers, which apply the moment the tile is owned. Resources join the
+> city pool; one claim even minted +1 rural population. Works at **distance 4 AND 5,
+> non-contiguously (across unowned gaps), and on water**. City yield delta matched the
+> tile tooltip total exactly on all 4 test tiles.
+>
+> **Unified model reconciling every prior test:** ownership alone ≠ yields (the WASET
+> "dead" tile was grabbed by CLAIM_RESOURCE's territory side-effect and never
+> auto-improved); an **improved** rural tile pays at any distance; the range-3 cap only
+> blocks **player-driven** improving/pop-placement. So "empty outer tiles are a dead
+> end" (§5) is wrong for claimPlot-claimed tiles — they self-improve. The delivery wall
+> (gameplay isolate unreachable by mods, §4a) is UNCHANGED on 1.4.1 and is the only
+> thing keeping this out of a shippable mod; it works fully in FireTuner and scenarios.
 
 ⚠ **Reframed by in-game testing** — the original "work radius is 3" reading was
 imprecise. The truth:
@@ -172,15 +191,18 @@ custom gameplay JS script calling `claimPlot` — BLOCKED (below); (b) a NATIVE 
 (unit ability/command, player operation, or effect) triggered purely by DATA — runs in the
 engine, ships in normal games, NOT yet tested. The Prospector proves (b) exists.
 
-**Path (b) — native/data claim candidates (UNTESTED, the live avenue):**
-- **`PlayerOperationTypes.LAND_CLAIM`** — the diplomatic claim-a-tile operation. Base diplo
-  plot-picker (`interface-mode-diplo-claim-plot.ts`) calls `Game.PlayerOperations.sendRequest(
-  pid, LAND_CLAIM, {Type:DIPLOMACY_ACTION_LAND_CLAIM.$index, X, Y})` — a NATIVE, PLOT-TARGETED
-  claim via the sanctioned UI→engine `sendRequest` channel (which WORKS, unlike claimPlot in
-  UI). Uses `EFFECT_COMPLETE_LAND_CLAIM` (COLLECTION_OWNER, Permanent). Reach is a moddable
-  GlobalParameter: `LAND_CLAIM_RANGE_PER_STEP=2`, `LAND_CLAIM_STEPS=1`. Tied to settler-class
-  units (`UNIT_CLASS_CREATE_TOWN/CITY`, diplomacy-actions.xml:552-553); InfCost 0. OPEN: can it
-  target an unowned ring-4/5 tile, or only contested/neighbor land? → test via `canStart`.
+**Path (b) — native/data claim candidates:**
+- **`PlayerOperationTypes.LAND_CLAIM` — ❌ TESTED 2026-07-03: DORMANT/CUT CONTENT on 1.4.1.**
+  `Game.PlayerOperations.canStart(pid, PlayerOperationTypes.LAND_CLAIM, {Type:
+  GameInfo.DiplomacyActions.lookup("DIPLOMACY_ACTION_LAND_CLAIM").$index, X, Y}, false)`
+  returns `{Success:false}` (no reason field) for EVERY tile — unowned ring-4/5, own city
+  center, and with a Settler (UNIT_CLASS_CREATE_TOWN) standing ON the target. Corroborating:
+  base-wide grep shows LAND_CLAIM referenced in exactly ONE UI file
+  (`interface-mode-diplo-claim-plot.js`) and nothing ever switches to
+  `INTERFACEMODE_DIPLO_CLAIM_PLOT` — the entry point was cut. The data rows (range
+  GlobalParameters `LAND_CLAIM_RANGE_PER_STEP=2`/`STEPS=1` as `<Replace>` rows, effects,
+  unit tags, grievance event) are all live but the native operation refuses to start.
+  Re-probe after each patch in case Firaxis revives it.
 - **Prospector `UNITCOMMAND_CLAIM_RESOURCE`** — native resource-claim (MO, resource-gated).
 - Native effects seen: `EFFECT_START_LAND_CLAIM`/`EFFECT_COMPLETE_LAND_CLAIM`,
   `EFFECT_GRANT_SUZERAIN_UNIT_PLOT`, `EFFECT_PLAYER_GRANT_UNIT_AT_PLOT` (no general
@@ -250,6 +272,12 @@ population milestones, carrying the claim charge, + an MA per-resource amplifier
 open decisions (which milestones, charges, amplifier amount) in the mod repo:
 `metropolis-ascendant/docs/SURVEYOR-RESOURCE-REACH-PLAN.md`. Working reference mod:
 `metropolis-ascendant`-adjacent `mods/claim-resource-test/`.
+
+**Ring-4/5 via story-seeded resources (phase-2, researched 2026-07-03):** `EFFECT_PLOT_PLACE_RESOURCE`
+lands on UNOWNED plots when driven from `COLLECTION_NARRATIVE_STORY` (13 base discovery stories do it),
+and discovery sites spawn ≥3 tiles from major starts = exactly the ring-3–6 band; a custom tall-gated
+discovery-investigation story can seed a Surveyor-claimable resource there, all data-only. Full system
+writeup: [narrative-events.md](narrative-events.md).
 
 See also [[civ7-tile-swap-and-radius]] in memory, and the design rule
 [[civ7-age-transition-static-functions]].

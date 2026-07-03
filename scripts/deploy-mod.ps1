@@ -32,7 +32,7 @@ if (-not (Test-Path -LiteralPath $ModsDir)) {
 # Sanity check: warn if there's no .modinfo at the root of the dev folder.
 $modinfo = Get-ChildItem -LiteralPath $DevFolder -Filter '*.modinfo' -File -ErrorAction SilentlyContinue
 if (-not $modinfo) {
-    Write-Warning "No .modinfo found at the root of $DevFolder — is this the mod folder?"
+    Write-Warning "No .modinfo found at the root of $DevFolder - is this the mod folder?"
 }
 
 $dest = Join-Path $ModsDir $name

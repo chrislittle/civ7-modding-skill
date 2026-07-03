@@ -46,6 +46,14 @@ duplicate-insert **crash**, so emit the chain for AQ/EX only):
 - Native reach = **5 hexes** from any of your Settlements, **resource tiles only**; the surrounding land
   joins as territory but empty tiles stay unworkable at the 3-hex work radius (see
   [tile-ownership-and-radius.md](tile-ownership-and-radius.md)).
+- ⚠ **The claim's target validity is native and narrow (in-game verified 2026-07-03):** it only
+  targets **natively-registered** resources (map-gen, age-transition seeding, or discovery-site
+  story rewards). A resource placed by a runtime modifier/story (`EFFECT_PLOT_PLACE_RESOURCE`
+  from a gossip-anchored story or plot collection) renders and yields but is **invisible to the
+  claim** — the highlighter never lights it, on any terrain, at any range; the story-row
+  `ResourceReq` column does not change this. And the **5-hex range has NO data parameter**
+  (the only "claim range" param in the dataset belongs to the dead diplo LAND_CLAIM system) —
+  both the range and the target filter are unmoddable.
 - In **Modern** you only need the unit + `UNIT_CLASS_PROSPECTOR` tag; the base game supplies the rest.
 
 ## Charges & self-consumption (there is no generic "consume after use")

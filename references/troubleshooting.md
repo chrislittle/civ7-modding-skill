@@ -102,6 +102,27 @@ You can't — the `Constructibles` schema gates buildability only on physical pl
 gate the building's *effect* (a `<Modifier>` requirement) instead, and accept the entry stays visible.
 → [constructibles.md](constructibles.md#defining-a-new-building-the-minimum-table-set)
 
+## Symptom: a story/effect-seeded resource renders on the map but the Prospector/Surveyor CLAIM won't target it
+
+Expected — not a bug in your mod. The claim's native validity only sees **natively-registered**
+resources (map-gen, age-transition seeding, discovery-site story rewards). A resource placed by
+a runtime story or plot-collection modifier (`EFFECT_PLOT_PLACE_RESOURCE`) renders, shows yields,
+and occupies the plot, but the claim highlighter never lights it — regardless of terrain or
+range, and the story-row `ResourceReq` column doesn't help. No data-side fix exists (in-game
+verified 2026-07-03, six-run litmus). If you need a claimable seeded resource, deliver it via a
+**discovery-queue story bound to a map-gen site** (those register natively) or grant it directly
+on owned land with `EFFECT_CITY_ADD_RESOURCE_TO_PLOT` (CITY-class resources only).
+→ [narrative-events.md](narrative-events.md) + [custom-units.md](custom-units.md)
+
+## Symptom: my chained narrative stories all fire at once / land their rewards on the wrong tile
+
+Two engine rules (in-game verified 2026-07-03): **`UNLOCKED`-by-predecessor does not meter
+same-trigger repeats** — every story in the chain completes off the FIRST trigger gossip
+(burst); and **`DuplicateCount>1` gossip requirements anchor the story plot ERRATICALLY** (not
+reliably the Kth gossip's tile). The only shape with correct anchoring: **one REQUISITE story
+per distinct trigger filter, count=1 + `AfterInit`**. To meter N repeats, use N distinct trigger
+filters (e.g. different UnitTypes). → [narrative-events.md](narrative-events.md)
+
 ## Symptom: wrong constructible age (e.g. treating Temple as Antiquity)
 
 Constructible ages are **not** guessable from the id (`BUILDING_TEMPLE` = Exploration, `BUILDING_MONUMENT` =
