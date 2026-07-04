@@ -323,7 +323,6 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
 > "tall" gate) or leave them **self-scoping** ("no wonder → no effect"), and keep them **binary** (population
 > size doesn't decide whether a wonder confers a benefit — no pop tiers). **Yields are the opposite** — yield
 > amounts legitimately change with tech/era, so node-gating + re-earning + scaling them per Age is correct.
-> See [[civ7-age-transition-static-functions]].
 
 > **Working impassable terrain — make mountains yield (no special civ).** Mountains are impassable/dead by default.
 > To reclaim them: (1) grant the base **faux improvement** via `EFFECT_PLAYER_GRANT_CONSTRUCTIBLE_UNLOCK`

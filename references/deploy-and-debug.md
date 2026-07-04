@@ -28,7 +28,7 @@ Base of the user-data folder (`%LOCALAPPDATA%` = `C:\Users\<you>\AppData\Local`)
 
 ## Deploy + test loop
 
-1. Keep a **dev source of truth** outside the game folder (e.g. `…\civ7_mods\mods\my-mod`).
+1. Keep a **dev source of truth** outside the game folder (e.g. `C:\dev\civ7-mods\my-mod`).
 2. Deploy = remove the old deployed copy, then copy dev → `Mods\`:
    `powershell scripts/deploy-mod.ps1 <dev-folder>`. Deploy a **copied folder**, not a
    junction. Local mods apply fine — no Steam Workshop needed. Re-copying over a

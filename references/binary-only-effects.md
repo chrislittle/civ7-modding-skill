@@ -3,15 +3,18 @@
 Extracted 2026-07-03 from `Civ7_Win64_DX12_FinalRelease.exe` (1.4.1 build 1267347) by ASCII-string
 scan for `EFFECT_[A-Z0-9_]+`, then diffed against every EFFECT_ token in Base/modules + DLC
 XML/SQL. **These are strings, not verified handlers** - each may be functional cut content, a
-dormant feature, or a dead symbol. Test via tracer litmus before relying on one (see
-`mods/engine-effects-probe/` in the civ7_mods repo for the pattern). Arg names are unguessable
+dormant feature, or a dead symbol. Test via tracer litmus before relying on one — the pattern:
+a tiny UpdateDatabase-only mod defining one modifier per suspect effect, each with a DISTINCT
+visible in-game signature (border change, resource appearing, yield tooltip), attach-wrapped
+CONTINUOUS to all major players (run-once-at-attach fires before plots/cities exist and never
+re-fires), then read results off the visuals in a new game. Arg names are unguessable
 (no data examples exist); read GameEffects/Database logs for rejection hints and iterate.
 
 Caveat: the binary scan found FEWER tokens (661) than data uses (763), so plain-string extraction
 is incomplete - absence from this list proves nothing, and more hidden effects may exist.
 
-Regenerate after each patch: re-run the scan (see civ7-tile-swap-and-radius memory 2026-07-03 for
-the PowerShell) - patches may wire these up or add new ones.
+Regenerate after each patch: re-run the scan (method in the "Scan method" section below) -
+patches may wire these up or add new ones.
 
 ## High-interest for tall/ring-4-5 work (probe round 1 results, 2026-07-03)
 
@@ -19,10 +22,16 @@ the PowerShell) - patches may wire these up or add new ones.
   (guessed, accepted). From `COLLECTION_PLAYER_CITIES` it painted the yield onto ALL tiles in range
   including UNOWNED ring-4/5 tiles (no ownership guard). Note: painted != collected — unworked tiles
   still pay nothing; it's an amplifier for later claimed/worked tiles.
-- EFFECT_GRANT_PLOT — **❌ DEAD (probe v2, 2026-07-03): no-op in ALL four contexts tried** — plot
-  collection (unowned+adjacent subject reqs), COLLECTION_PLAYER_CITIES + Amount,
-  COLLECTION_OWNER + Amount, and COLLECTION_NARRATIVE_STORY at a proven-anchored story plot
-  (the silver co-reward on the same story fired; GRANT_PLOT did not). Treat as dormant/cut.
+- EFFECT_GRANT_PLOT — **❌❌ DEAD & CLOSED (probe v3, 2026-07-04): no-op in ALL FIVE contexts,
+  including the Civ 6-native UNIT-scoped shape.** v2 killed four: plot collection
+  (unowned+adjacent subject reqs), COLLECTION_PLAYER_CITIES + Amount, COLLECTION_OWNER + Amount
+  (player-attached), COLLECTION_NARRATIVE_STORY at a proven-anchored story plot. v3 killed the
+  last: COLLECTION_OWNER attached to a UNIT via UnitAbilityModifiers (Civ 6's Cyp W&T contract —
+  "grant the plot the owning unit stands on", their dummy-GP birth modifier). Tested in-game:
+  run-once-at-creation (story-spawned Scout ON an unowned dist-4/5 tile, capital existing,
+  silver co-reward fired, FireTuner getOwner stayed -1) AND continuous ± Amount (all scouts,
+  player + AI, whole session, zero flips). Do NOT re-probe except after a patch; this was the
+  final plausible context.
 - EFFECT_GRANT_FREE_CONSTRUCTIBLE_ALL_VALID_PLOTS — ❌ no-op with `ConstructibleType` AND
   `ConstructibleClass` args from COLLECTION_PLAYER_CITIES. Treat as dormant.
 - EFFECT_ADJUST_PLAYER_CITY_TILES — ❌ no-op player- and city-scoped with Amount; expand picker
@@ -39,8 +48,42 @@ one provably ran) — logs cannot distinguish dead handler from wrong args; only
 **Binary-only COLLECTIONS also scanned (68 total, 22 unused): no hidden plot-scoped collections
 exist** — the data-used plot collections are the complete set. The unused ones are team/army/diplo
 scoped (COLLECTION_TEAM_*, COLLECTION_PLAYER_ARMIES, COLLECTION_MINOR_PLAYERS,
-COLLECTION_COUNT_EQUALS/GREATERTHAN, COLLECTION_OWNER_DISTANT_LANDS_CITY_*, …). 491 REQUIREMENT_
-tokens extracted too (diff not yet analyzed).
+COLLECTION_COUNT_EQUALS/GREATERTHAN, COLLECTION_OWNER_DISTANT_LANDS_CITY_*, …).
+
+## REQUIREMENT_ diff (done 2026-07-04, same 1.4.1 build): 490 binary / 319 data-used / 173 binary-only
+
+Headliners among the 173 never-used-in-data requirement tokens (strings, not verified handlers):
+
+- **REQUIREMENT_PLOT_PROPERTY_MATCHES** — the EXACT requirement type Civ 6's Cyp Wide-and-Tall
+  uses for its plot-property→modifier yield bridge. Present in the Civ 7 binary, used by NO data.
+  ⚠ No plot-property SETTER exists at the data level (no EFFECT_PLOT_PROPERTY token; only
+  player/unit setters are live — see property-system note below), so even if the handler is alive
+  it can only read properties the ENGINE sets on plots (unknown if any exist). Probe order:
+  first find any natively-set plot property, else pair-test with narrative-story rewards.
+- REQUIREMENT_COLLECTION_COUNT_EQUALS / _GREATERTHAN — generic collection-cardinality gates.
+- REQUIREMENT_UNIT_HAS_X_CHARGES, REQUIREMENT_UNIT_ADJACENT_TO_OWNER_TERRITORY,
+  REQUIREMENT_PLOT_UNIT_TYPE_MATCHES, REQUIREMENT_PLOT_ADJACENT_FRIENDLY_UNIT_TYPE_MATCHES —
+  unit/plot conjunctions useful for unit-delivered mechanics if live.
+- REQUIREMENT_PLOT_HAS_YIELD, REQUIREMENT_PLOT_HAS_ANY_IMPROVEMENT, REQUIREMENT_PLOT_HAS_EFFECT,
+  REQUIREMENT_PLOT_IS_HILLS/FRESH_WATER/ANY_CAPITAL — plot-state gates absent from data.
+- Full 173 list: regenerate via the scan below (kept out of this file for size; the interesting
+  subset is above).
+
+**Civ 7 property system (grounded 2026-07-04):** data-live setters = `EFFECT_PLAYER_PROPERTY` and
+`EFFECT_UNIT_PROPERTY` (args `Key`/`Value`/`Operation` = SET|CHANGE; base: Commanderies
+UpgradeDiscount, Future-Tech NextAgeTechBoost). Data-live reader = 
+`EFFECT_PLAYER_ADJUST_YIELD_PER_PROPERTY_VALUE` (args `PropertyName`/`YieldType`/`Multiplier`;
+base: age-transition legacy cards, e.g. +2 gold per PROPERTY_ANTIQUITY_TRADE_ROUTE_TOTAL).
+Binary-only, unprobed: `EFFECT_CITY_PROPERTY`, `EFFECT_GAME_PROPERTY`. Gameplay-isolate JS also
+has `unit.setProperty`/`player.getProperty`/`city.getProperty` (walled to mods). Together the live
+pieces = a data-only accumulator substrate: run-once/triggered property CHANGEs feeding a
+continuous yield-per-property modifier.
+
+**Scan method (fast, replaces the slow PowerShell byte loop):** copy the exe out of Program Files
+(sandbox blocks rg there), then
+`rg -a -o 'EFFECT_[A-Z0-9_]{4,}' civ7.exe.bin | sort -u` (same for REQUIREMENT_/COLLECTION_),
+diff against `grep -rhoE ... Base/modules DLC --include=*.xml --include=*.sql | sort -u` via
+`comm -23`. Delete the exe copy after.
 
 ## Full list (195 effects)
 - EFFECT_ADD_COMMANDER_WITH_UNITS_TO_PLAYER_CITY

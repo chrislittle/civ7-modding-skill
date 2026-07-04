@@ -4,6 +4,25 @@ Everything here was extracted from the **installed base-game code** (not docs), 
 the Civ6 "Neighborhood Tall Extension" mod source. Trust it over wiki/forum claims,
 which are stale or wrong on this topic.
 
+> **🏁 FINAL STATUS (2026-07-04, full Civ6-vs-Civ7 engine re-audit + probe v3 in-game):
+> NO data-only claim/ownership primitive exists on 1.4.1 — this is now EXHAUSTIVE, not
+> provisional.** The last untested shape, `EFFECT_GRANT_PLOT` with a UNIT as modifier owner
+> (Civ 6's native contract: dummy unit spawned at the target plot, birth modifier grants the
+> plot it stands on), was probed 2026-07-04 via UnitAbilityModifiers on UNIT_SCOUT
+> (run-once-at-creation on a story-spawned unit at an unowned dist-4/5 tile + continuous ±
+> Amount variants) — **dead in all of them**, making GRANT_PLOT no-op in all five contexts
+> (plot/city/player/story/unit). Every Civ 6 route ran through the gameplay script VM, which
+> Civ 7 walls off (section 4a). Remaining routes = scenario ship (claimPlot works there) or a
+> patch. Unit-scoped probe recipe, reusable for any suspected unit-anchored effect: custom
+> KIND_ABILITY + UNIT_CLASS tag on a base unit (TypeTags + UnitClass_Abilities +
+> UnitAbilityModifiers rows) attaching the suspect modifier with COLLECTION_OWNER; deliver an
+> aimed at-creation firing via a disband-triggered REQUISITE story whose reward is
+> EFFECT_PLAYER_GRANT_UNIT_AT_PLOT, and pair every tracer with a proven co-reward (e.g.
+> EFFECT_PLOT_PLACE_RESOURCE) so "story fired but effect didn't" is distinguishable.
+> Also grounded that day: Civ 7 has NO plot-property setter (the Civ 6 yield-siphon bridge
+> can't be assembled — irrelevant anyway, owned tiles self-work at any distance), and no
+> gameplay-script modinfo action exists in any installed Base/DLC/workshop modinfo.
+
 ## 1. The native cross-city "swap" IS real (wiki says otherwise — it's wrong)
 
 A settlement's **Expand / place-population picker** can reassign a tile that is
@@ -37,8 +56,8 @@ still names a different city of yours; picking it transfers ownership.
 > "dead" tile was grabbed by CLAIM_RESOURCE's territory side-effect and never
 > auto-improved); an **improved** rural tile pays at any distance; the range-3 cap only
 > blocks **player-driven** improving/pop-placement. So "empty outer tiles are a dead
-> end" (§5) is wrong for claimPlot-claimed tiles — they self-improve. The delivery wall
-> (gameplay isolate unreachable by mods, §4a) is UNCHANGED on 1.4.1 and is the only
+> end" (section 5) is wrong for claimPlot-claimed tiles — they self-improve. The delivery wall
+> (gameplay isolate unreachable by mods, section 4a) is UNCHANGED on 1.4.1 and is the only
 > thing keeping this out of a shippable mod; it works fully in FireTuner and scenarios.
 
 ⚠ **Reframed by in-game testing** — the original "work radius is 3" reading was
@@ -55,7 +74,7 @@ imprecise. The truth:
   owned ring-4 tiles natively.
 - **Consequence:** a Civ7 3→5 mod needs ONLY to *claim* ring-4/5 tiles for tall
   cities — **no yield injection, no dummy specialists** (unlike the Civ6 mod, whose
-  *working* layer WAS radius-capped, §4). Dramatically lighter than Civ6.
+  *working* layer WAS radius-capped, section 4). Dramatically lighter than Civ6.
 - **SHIPPED as a data-only feature 2026-07-02 (Metropolis Ascendant "Surveyor"):** the
   general claimPlot route needs a gameplay-script isolate mods can't reach, but the base
   Prospector **`UNITCOMMAND_CLAIM_RESOURCE`** claims a **resource** tile ≤5 hexes into your
@@ -162,7 +181,7 @@ to the city**, not just the player.
 
 **✅ Second test ALSO CONFIRMED 2026-06-30:** the owned ring-4 tiles **DO get worked
 natively** — claiming yielding dist-4 tiles raised the city's per-turn yields with each
-claim (see §2). So **NO yield injection / dummy specialists are needed** — the Civ6
+claim (see section 2). So **NO yield injection / dummy specialists are needed** — the Civ6
 faking layer does not need to port at all. The mod is just: claim ring-4/5 tiles for
 tall cities; the engine works them.
 
@@ -225,7 +244,7 @@ V8 isolate, which a mod CANNOT inject into for a normal game):
   time." `<ScenarioScripts>` runs only in actual **scenario** games (no base/DLC modinfo uses
   it). The ONLY persistent mod JS in a normal game is `<UIScripts>` (App UI isolate), which
   **can't mutate gameplay** (claimPlot no-op there, tested) and risks MP desync.
-- **No data path either:** there is no XML/SQL `EFFECT_*` to claim tiles or widen radius (§2-3).
+- **No data path either:** there is no XML/SQL `EFFECT_*` to claim tiles or widen radius (sections 2-3).
 
 So the gameplay isolate is reachable only by **FireTuner** (external debug tool) or **scenario
 scripts** — neither is a shippable normal-game mod. **REALISTIC OPTIONS:** (a) SHELF until
@@ -268,10 +287,13 @@ native claim that works — the Prospector's resource claim — deployed for tal
   / `…_PER_SLOTTED_RESOURCE` / `…_PER_RESOURCE_CLASS` (the engine has a whole per-resource family).
 
 **Design (decided):** a DEDICATED tall-gated "Surveyor" unit (not tagging base Migrants), granted at
-population milestones, carrying the claim charge, + an MA per-resource amplifier. Full build spec +
-open decisions (which milestones, charges, amplifier amount) in the mod repo:
-`metropolis-ascendant/docs/SURVEYOR-RESOURCE-REACH-PLAN.md`. Working reference mod:
-`metropolis-ascendant`-adjacent `mods/claim-resource-test/`.
+population milestones, carrying the claim charge, + an MA per-resource amplifier. **Shipped
+implementation (public):** the Metropolis Ascendant mod
+(github.com/chrislittle/metropolis-ascendant) — see `data/antiquity/surveyor.xml` +
+`surveyor-bind.xml` for the complete AQ/EX ability-chain wiring (unit + UNIT_CLASS_PROSPECTOR tag +
+ABILITY_CLAIM_RESOURCE + charge-grant modifier), and the Modern variant for the tag-only form.
+Minimal proof-of-concept is just ONE row: a TypeTags entry adding `UNIT_CLASS_PROSPECTOR` to any
+Modern-age unit surfaces the working Claim Resource command.
 
 **Ring-4/5 via story-seeded resources (phase-2, researched 2026-07-03):** `EFFECT_PLOT_PLACE_RESOURCE`
 lands on UNOWNED plots when driven from `COLLECTION_NARRATIVE_STORY` (13 base discovery stories do it),
@@ -279,5 +301,7 @@ and discovery sites spawn ≥3 tiles from major starts = exactly the ring-3–6 
 discovery-investigation story can seed a Surveyor-claimable resource there, all data-only. Full system
 writeup: [narrative-events.md](narrative-events.md).
 
-See also [[civ7-tile-swap-and-radius]] in memory, and the design rule
-[[civ7-age-transition-static-functions]].
+Design rule worth carrying into any use of these mechanics: do NOT gate static-world effects
+(appeal, wonder/terrain adjacency) behind per-Age tech/civic nodes — they would wrongly blink
+off at Age rollovers; keep them binary and condition-gated. Yields are fine to re-gate/scale
+per Age.
