@@ -162,7 +162,13 @@ Each `<ActionGroup>` ties a `criteria` to a set of `<Actions>`.
     atlas entry (e.g. `blp:city_antiquity_256x256`, `blp:project_discover_calculus`); the
     UI resolves the icon by the row's `<ID>` matching the object's Type. This mirrors how
     the base game loads `data/icons/project-icons.xml`.
-  - (`<UIScripts>` / `<ImportFiles>` exist for UI mods — out of scope here.)
+  - `<UIScripts>` (load a JS module into the UI runtime) and `<ImportFiles>` (mount
+    HTML/CSS/PNG assets — or shadow-replace a base-game UI file at the same relative
+    path) are the UI-mod actions — see [ui-modding.md](ui-modding.md). Two UI-relevant
+    facts that surprise data modders: `<UpdateText>` also accepts **`.sql`** files
+    (`INSERT OR REPLACE INTO LocalizedText …`), and `<UpdateDatabase>` in a
+    **`scope="shell"`** group writes the *frontend/config* database (hotkey
+    `InputActions` rows live there), not the gameplay database.
 
 Paths are **relative to the modinfo's folder**, forward slashes.
 

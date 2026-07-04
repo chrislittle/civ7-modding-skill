@@ -185,6 +185,36 @@ necessary, not sufficient.
 3. Remember "Passed Validation" is the **whole DB**, not proof your rows are in — if the
    mod never applied, your rows were never inserted in the first place.
 
+## Symptom: UI mod loads but the screen/patch does nothing (UI-mod cases)
+
+All from shipping-mod scar tissue — see [ui-modding.md](ui-modding.md) for the patterns.
+
+1. **A thrown error during module load kills the whole script silently.** The #1 cause is
+   a bad `import` path — especially after a game patch **moves a core module** (known case:
+   an options-screen module moved and every mod importing the old path lost its Options tab).
+   Check the UI log for the exception; re-verify import paths against the installed
+   `Base/modules/core/ui/` tree after every patch.
+2. **Script registered with the wrong scope.** Options/settings scripts must be listed in
+   BOTH a `scope="shell"` and a `scope="game"` ActionGroup; a hotkey's `InputActions` rows
+   must load via a **shell**-scope `UpdateDatabase` (they live in the frontend DB).
+3. **Mod-options saved but readback is broken for every mod** → some mod wrote a second
+   localStorage key. The engine's localStorage bridge only tolerates the single shared
+   `"modSettings"` key (one JSON object, namespaced per mod). Find and remove the stray key.
+   → [ui-modding.md](ui-modding.md#mod-options-and-the-shared-settings-store)
+4. **Two mods replace the same base file via `ImportFiles`** — higher LoadOrder wins, the
+   other mod silently breaks. Prefer `Controls.decorate`/prototype patches; if replacement
+   is unavoidable, document the conflict.
+5. **You patched the old `ui/` file but the screen now runs on `ui-next/`** (or half of it
+   does — the production chooser uses both stacks). Restyle/replace BOTH variants.
+   → [ui-modding.md](ui-modding.md#ui-next-the-second-ui-stack)
+6. **Patch ran before the target was registered.** Side-effect-import the base module first
+   (`import '/base-standard/ui/...';`) or defer via `engine.whenReady.then(...)` instead of
+   timers.
+7. **A text element renders EMPTY (styled box present, no words, no error)** → check for
+   `font-style: italic`. The game fonts ship no italic face and the engine draws nothing
+   instead of synthesizing a slant (base UI uses zero italics). Remove the italic; de-emphasize
+   with color/opacity/size. Verified in-game. → [ui-modding.md](ui-modding.md#css-gotchas-inside-the-game-ui)
+
 ## When you're stuck in a silent-failure loop
 
 Stop guessing and **isolate the layer**: deploy `assets/litmus-mod/` (integer version,

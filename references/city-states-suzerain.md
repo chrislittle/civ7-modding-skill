@@ -3,6 +3,12 @@
 How Civ VII independent/city-state suzerain bonuses are structured, the effects for modding them,
 and the hard-won gotchas — especially for a **tall / one-city** mod where most CS bonuses scale badly.
 
+> **UI-JS side reads** (verified in shipping UI code + in-game 2026-07-04): a city-state's
+> suzerain is `cityStatePlayer.Influence.getSuzerain()` (returns the playerId, `-1` if none —
+> majors always return -1, so "count players whose suzerain == me" needs no city-state filter);
+> its type is `GameInfo.CityStateTypes.lookup(cityStatePlayer.getCityStateCityStateType())`
+> → row `.CityStateType` + localized `.Name`. Iterate candidates via `Players.getAlive()`.
+
 ## How the bonus system works (the "draft from a pool" mechanic)
 
 - Every city-state has one of **6 types**: `SCIENTIFIC`, `CULTURAL`, `ECONOMIC`, `MILITARISTIC`,

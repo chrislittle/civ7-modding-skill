@@ -10,6 +10,7 @@ discovered, enabled, applied — rather than assuming it.
 - [The three states (and how to confirm each)](#the-three-states)
 - [Reading the logs](#reading-the-logs)
 - [Inspecting the Mods.sqlite registry](#inspecting-the-modssqlite-registry)
+- [Live-poking the game: FireTuner (and the UI-mod dev loop)](#live-poking-the-game-firetuner-and-the-ui-mod-dev-loop)
 - [The litmus mod](#the-litmus-mod)
 
 ## Paths you'll use
@@ -94,6 +95,26 @@ Copy-Item $src "$env:TEMP\Mods_copy.sqlite" -Force
 - `Mods.Disabled`: NULL/0 = enabled, 1 = disabled.
 - `ModProperties` holds the **Version the engine actually parsed** — if your modinfo
   says `1` but this shows `0`/empty, you've found a version-parse problem.
+
+## Live-poking the game: FireTuner (and the UI-mod dev loop)
+
+The official SDK (Steam → *Sid Meier's Civilization VII SDK*) ships **FireTuner**, whose
+**Scripting Console** evaluates JavaScript against the running game — the same JS
+environment UI mods run in. Fastest way to answer "what does the API actually return":
+
+```js
+(function(){const p=Players.get(GameContext.localPlayerID);return JSON.stringify(p.Stats.getNetYield(YieldTypes.YIELD_GOLD));})()
+```
+
+- Input is **single-line** — wrap multi-statement probes in an IIFE one-liner.
+- A proven diff technique (from the Policy Yield Previews mod): dump
+  `player.Stats.getYields()` (a recursive per-yield breakdown tree) before and after a
+  change and diff the JSONs to see exactly which leaf moved. This debugs *gameplay*
+  mods too — it shows whether your modifier's contribution actually landed in the
+  yield tree, and under which node.
+- For UI mods, a "Reload UI" action (available as a button in community cheat-panel
+  mods) re-runs all UI scripts without relaunching the game — a much faster iteration
+  loop. Database/text changes still need a full restart.
 
 ## The litmus mod
 

@@ -2,11 +2,13 @@
 name: civ7-modding
 description: >-
   Build, deploy, and debug Civilization VII gameplay/database mods (modinfo +
-  GameEffects modifiers + projects + traditions). Use this skill whenever the
+  GameEffects modifiers + projects + traditions) and UI mods (JS/HTML screens,
+  panels, lenses, decorators, hotkeys, mod options). Use this skill whenever the
   user is working on a Civ VII / Civ 7 / Civilization VII mod — writing or fixing
   a .modinfo, defining Modifiers/Effects/Requirements, adding city or player
-  bonuses, creating Projects, tradition unlocks, or tech/civic-node-gated bonuses, or
-  troubleshooting a mod that
+  bonuses, creating Projects, tradition unlocks, or tech/civic-node-gated bonuses,
+  modding the game's UI (Controls.decorate, custom screens/panels, map lenses,
+  UIScripts / ImportFiles), or troubleshooting a mod that
   "shows enabled but does nothing," crashes on map load, or never appears in-game.
   Also use when they mention Modding.log / Database.log, the Firaxis Games Mods
   folder, EFFECT_* / REQUIREMENT_* / COLLECTION_* names, the attach-modifiers
@@ -77,6 +79,12 @@ A mod is a folder containing a `.modinfo` file plus the data it loads:
   `<Modifier>` definitions (collection + effect + requirements + arguments) that
   change gameplay. Details: [references/gameeffects.md](references/gameeffects.md).
 
+There is a second, separate modding domain: **UI mods** — JavaScript/HTML/CSS that
+runs inside the game's embedded web UI (decorating or patching the game's own screen
+components, adding lenses, panels, hotkeys, and mod options). No Modifiers involved;
+different actions in the modinfo (`UIScripts`/`ImportFiles`), different failure modes.
+See [references/ui-modding.md](references/ui-modding.md).
+
 The mental model: **a gameplay change is a Modifier.** It acts on a `collection` of
 objects, gated by `Requirements`. Two things to get right, separately: *delivery* (how
 the modifier reaches a player — almost always the `COLLECTION_MAJOR_PLAYERS` +
@@ -133,6 +141,7 @@ seem missing") to the documented cause and fix. Don't theorize; match the sympto
 | [references/city-states-suzerain.md](references/city-states-suzerain.md) | City-state suzerain bonuses: the draft-from-a-pool mechanic, **`Shareable`** (repeatable) vs exclusive options, the `CITY_STATE_<TYPE>_BONUS_<AGE>_7` shareable id, the suzerain effects table, `REQUIREMENT_PLAYER_ELIGIBLE_CS_BONUS` (boolean) gating, **Influence = `YIELD_DIPLOMACY` (player-level, never per-pop/per-city)** + the proven ways to grant it, why flat per-CS yields fail for tall (use per-pop), and overriding the draft-menu description text. |
 | [references/town-specialization-rollin.md](references/town-specialization-rollin.md) | Internalizing base **Town specialization** focuses into a one-city/tall player (DISTINCT from the suzerain layer): the two delivery patterns, data-id vs in-game focus-name table (e.g. `PROJECT_TOWN_INN` = "Hub Town"), the roll-in pattern, and **the overlap rule** — don't re-emit a bucket whose yield/mechanic the fan-out kit already covers; roll in for a *distinct mechanic* only. |
 | [references/custom-units.md](references/custom-units.md) | **Custom units**: buildable-unit minimum tables + no player-state buildability gate; porting a Modern-only ability chain (CLAIM_RESOURCE) into AQ/EX; **charges & self-consumption is hardwired** (no generic "consume after use"); **granting traps** (tech-locked units can't be granted; `run-once` fires at attach time — use a count-gated continuous grant); **icons need TWO rows** (flag + `FONTICON`) loaded in **game+shell `always`** groups (per-Age groups don't register → black icon); **`VisualRemaps` = its own `UpdateVisualRemaps` action** (not UpdateDatabase → crash), `From`=donor `To`=your unit; **the selected-unit portrait is a live 3D render** so a modelless custom unit shows BLACK there regardless; per-resource yield effects; tall-gating a charge; **no AI advisories = AI ignores the unit**. |
+| [references/ui-modding.md](references/ui-modding.md) | **UI mods (JS/HTML/CSS)**: modinfo wiring (`UIScripts` vs `ImportFiles` file-shadowing, shell vs game scope, `UpdateText` accepts **.sql**, LoadOrder conventions, `fs://game/<mod-id>/` paths); the patch ladder (**`Controls.decorate`** → prototype monkey-patch → whole-file replacement); custom screens (`Panel` + `Controls.define` + `ContextManager`), sub-system-dock buttons; **lenses & lens layers** (LensManager, map sprites/VFX); interface modes + views; **hotkeys** (InputActions rows + HotkeyManager); **mod options + the ⚠ single-`modSettings`-localStorage-key rule**; per-game `Catalog` storage; the JS game API surface (+ community TypeScript stubs); cross-mod `globalThis` APIs; the **ui-next dual-stack** warning; FireTuner scripting-console debugging. Distilled from 18 shipping Workshop mods. |
 | [references/finding-base-game-patterns.md](references/finding-base-game-patterns.md) | How to grep the base game for real EFFECT_*/REQUIREMENT_*/COLLECTION_* names and argument names. |
 | `references/effects-collections-catalog.md` *(generate locally — see note below)* | **Authoritative master list** of every EFFECT_*/COLLECTION_*/REQUIREMENT_* + YieldType **actually used** by the installed game, with per-effect/requirement argument names + usage counts and player-rooted (★) collection flags. Generate via [tools/gen-effects-catalog.py](tools/gen-effects-catalog.py). Confirm a name/argument exists here before building, instead of guessing or trusting external/stale lists. |
 | `references/display-names.md` *(generate locally — see note below)* | **Data-id → in-game English display name** (6k+ pairs): `BUILDING_TEMPLE`→"Temple", `PROJECT_TOWN_INN`→"Hub Town", `YIELD_DIPLOMACY`→"Influence", techs/civics/units/civs/leaders/traditions/resources. Use when the player/wiki name and the data id differ. Generate via [tools/gen-names-trees.py](tools/gen-names-trees.py). |
