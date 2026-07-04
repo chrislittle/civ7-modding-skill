@@ -205,7 +205,7 @@ ops so the picker alone can't claim.
 
 **⚠️ VERDICT (REVISED 2026-06-30): the SCRIPT delivery path is blocked, but a NATIVE/DATA
 claim path is UNTESTED and OPEN — do not call the feature dead.** (Premature "not shippable"
-conclusion corrected after Chris pushed back.) Two ways to trigger an engine claim: (a) a
+conclusion corrected after user pushback.) Two ways to trigger an engine claim: (a) a
 custom gameplay JS script calling `claimPlot` — BLOCKED (below); (b) a NATIVE engine action
 (unit ability/command, player operation, or effect) triggered purely by DATA — runs in the
 engine, ships in normal games, NOT yet tested. The Prospector proves (b) exists.
@@ -266,13 +266,13 @@ native claim that works — the Prospector's resource claim — deployed for tal
 
 - **Native claim that works:** `UNITCOMMAND_CLAIM_RESOURCE` (Prospector's `ABILITY_CLAIM_RESOURCE`).
   Claims a **resource** tile **within 5 hexes of a friendly settlement** and **brings it into your
-  territory** (Chris-confirmed from play + Explorer test). Resource-gating is NATIVE (the command row
+  territory** (confirmed in play + an Explorer test). Resource-gating is NATIVE (the command row
   is bare `Type`+`Kind`; no data requirement to drop) → resource tiles only.
 - **Ability transfers to ANY unit** via a `TypeTags` row tagging it `UNIT_CLASS_PROSPECTOR` (PROVEN:
   Explorer test, Modern). The unit→command link is automatic through the charged ability (the
   `units.xml` UnitType+Command row is just an `AIUnitPrioritizedActions` AI hint, not the grant).
 - **Empty claimed tiles stay inert:** a city CANNOT work/improve a tile beyond ring 3 (range-3 caps
-  *working*, not just claiming — Chris couldn't assign a citizen to a claimed desert tile in-game). A
+  *working*, not just claiming — a citizen could not be assigned to a claimed desert tile in-game). A
   per-type `EFFECT_PLOT_ADJUST_YIELD` lands on the tile but is never collected; **no "yield per owned
   tile/terrain" effect exists**. So only resource tiles (which self-improve via extraction outpost) pay.
 - **Grant a unit (with an ability):** `EFFECT_CITY_GRANT_UNIT` (arg `UnitType`) grants a unit to a city;

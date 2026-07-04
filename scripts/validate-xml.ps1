@@ -17,7 +17,10 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $ModFolder)) { throw "Folder not found: $ModFolder" }
 
-$files = Get-ChildItem -LiteralPath $ModFolder -Recurse -File -Include *.xml, *.modinfo
+# -Include is unreliable with -LiteralPath (filters silently ignored -> every file
+# gets parsed as XML, so a UI mod's .md/.js/.css files all "fail"); filter by extension.
+$files = Get-ChildItem -LiteralPath $ModFolder -Recurse -File |
+    Where-Object { $_.Extension -in '.xml', '.modinfo' }
 if (-not $files) { Write-Host "No .xml/.modinfo files under $ModFolder"; return }
 
 $bad = 0
