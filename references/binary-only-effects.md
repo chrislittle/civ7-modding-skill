@@ -281,3 +281,31 @@ diff against `grep -rhoE ... Base/modules DLC --include=*.xml --include=*.sql | 
 - EFFECT_UNIT_SET_ATTACK_AFTER_MOVE
 - EFFECT_USED
 - EFFECT_VISIBILITY_CHANGED
+
+## Gen-2 data-effect probe results (2026-07-05, `gen2-litmus` / `gen2-cityprop-litmus`)
+
+- **`EFFECT_CITY_PROPERTY` — ❌ INERT FROM DATA (probed, in-game).** 0 shipped data uses; the token
+  **FK-validates and the mod applies with no error/rollback**, but it **silently writes nothing** —
+  after a `COLLECTION_PLAYER_CITIES` setter (`Key`/`Value`/`Operation=SET`, args cloned from
+  `EFFECT_PLAYER_PROPERTY`), `Players.get(0).Cities.getCapital().getProperty("<Key>")` read `null`.
+  So **per-city / per-metropolis property accumulators are not data-moddable on 1.4.1** — use
+  player-scoped properties (contrast below).
+- **`EFFECT_PLAYER_PROPERTY` — ✅ WORKS + JS-READABLE.** `Key`/`Value`/`Operation` (both `SET` and
+  base's `CHANGE`); the value reads back in-game via `Players.get(pid).getProperty("<Key>")` (unset
+  keys → `null`). Good for dashboard accumulator meters + milestone-gating requirements. ⚠ its arbitrary
+  `Key` is **NOT** read by `EFFECT_PLAYER_ADJUST_YIELD_PER_PROPERTY_VALUE` (engine-totals only) — no
+  data-only "+N yield per counter point". See narrative-events.md "Quests & data-driven progression".
+- **`EFFECT_PLAYER_ADJUST_SETTLEMENT_CAP` negative leg — ✅ WORKS.** `Amount="-2"` (`COLLECTION_OWNER`,
+  attach-wrapped) **lowers** the cap cleanly — base start cap 3 read **1/1** on founding (no clamp-at-0,
+  not ignored). So a mod can drive the cap DOWN and hand it back with additive `+1` grants (earned-
+  expansion / charter designs). (`Minimum` arg untested — not needed for the subtract.)
+- **Injecting a node into an existing progression tree — ✅ functional / ⚠ no tree-graph render.**
+  A custom `ProgressionTreeNodes` + `ProgressionTreePrereqs` + `ProgressionTreeNodeUnlocks` row set
+  injected into `TREE_CIVICS_AQ_MAIN` **FK-validates, applies, is prereq-gated correctly, and is
+  researchable** — it appears in the **Choose Civic study picker** (with cost + unlock icon) once its
+  prereq completes, and its `KIND_MODIFIER` unlock (an `EFFECT_PLAYER_ATTRIBUTE` grant) is wired to fire.
+  **BUT it does NOT draw as a box in the tree-GRAPH screen** (the graph needs layout coordinates an
+  injected node lacks; the picker LIST enumerates available nodes regardless). Also: the node's `Cost`
+  must be **≥ its prereq's cost** or it won't even appear in the picker (Cost 90 < Mysticism 125 =
+  invisible; Cost 200 = visible). So injected nodes are a viable *mechanic* but a clean researchable
+  *tree graph* needs unsolved UI-layout work.

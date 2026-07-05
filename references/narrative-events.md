@@ -192,3 +192,42 @@ it (`NarrativeStoryOverrides`) to avoid the double pop-up and the freebie.
 **Still untested:** AllowDuplicates re-instantiation after a story completes (multiple simultaneous
 instances of *different* chains work); exact ResourceReq semantics; placing a resource on a plot
 that already has one (assume no-op — pick empty target tiles).
+
+## Quests & data-driven progression (probed in-game 2026-07-05, `gen2-litmus`)
+
+A full Civ-6-boost-style "do a deed → pop-up → reward" loop, incl. a choice pop-up, is buildable
+data-only. All confirmed in a new Antiquity game (logs: `NarrativeStories.log`, `Balance_Identity.csv`).
+
+- **Quest UI** — a `NarrativeStories` row with `IsQuest="TRUE"` + `Imperative="LOC_..."` +
+  `ShowProgress="TRUE"` renders as a tracked **Journal quest** with the imperative text AND a live
+  **progress counter (e.g. 0/3)** — and the counter renders for an ordinary **state-count completion
+  requirement** (e.g. `REQUIREMENT_PLAYER_HAS_AT_LEAST_NUM_MILITARY_UNITS Amount=3`), not just gossip
+  ladders. Model exactly on the base **1A→1C** chain.
+- **Choice pop-up** — a `REQUISITE` opener (`UIActivation="STANDARD"`) with two `LINKED` children
+  (via `NarrativeStory_Links`, `Priority` = button order) renders a **two-button choice menu** on
+  completion; each child can itself be an `IsQuest`. `ForceChoice` is NOT required for the buttons to
+  appear (base 1A omits it) and the pick logs as a `CHOOSE_NARRATIVE_STORY_DIRECTION` player op. This
+  is the pantheon-style fork mechanic, data-only.
+- **Instant completion for the opener** — `RequirementSetId="Met"` completes a REQUISITE story the
+  turn it activates (pops the menu immediately); gate *who gets it* with `ActivationRequirementSetId`.
+- **AI-noise gate** — `ActivationRequirementSetId` = a set containing `REQUIREMENT_PLAYER_IS_HUMAN`
+  restricts the whole chain to the human (confirmed: `NarrativeStories.log` showed only "Player 0";
+  no AI pop-ups/spam). Use this for any human-only quest UI.
+- **Reward = a modifier granted on COMPLETE** (or START) via `NarrativeRewards` + `NarrativeStory_Rewards`.
+  A story can carry **multiple** reward modifiers (one `NarrativeStory_Rewards` row each). Confirmed
+  reward effects (both fired, logged "applied reward"):
+  - **`EFFECT_PLAYER_ATTRIBUTE`** (`COLLECTION_OWNER`, `AttributeType` + `Amount`, `run-once`,
+    `permanent`) grants a **spendable leader attribute point** — clone of base `4C_NARRATIVE_MODIFIER`.
+    The point lands in the attribute-spend UI (`Balance_Identity.csv`: "Add points from source: <mod>").
+    This is the proven "quest → player-chosen currency" loop (a data-only pantheon-choice substrate).
+  - **`EFFECT_PLAYER_PROPERTY`** (`Key`/`Value`/`Operation`, **`SET` works**, not just base's `CHANGE`)
+    writes a player property that is then **JS-readable** via `Players.get(pid).getProperty("<Key>")`
+    (returned the set value; unset keys read `null`) — the substrate for dashboard accumulator meters.
+    ⚠ **BUT** `EFFECT_PLAYER_ADJUST_YIELD_PER_PROPERTY_VALUE` does **NOT** read an arbitrary mod-set
+    `Key` (no yield appeared with the property at 7) — that reader only sees engine-maintained totals
+    (`PROPERTY_ANTIQUITY_TRADE_ROUTE_TOTAL` etc.). So "counter → +N yield, data-only" is unavailable for
+    mod counters; turn a counter into power via attribute points or discrete `REQUIREMENT_PLAYER_HAS_X_*`
+    tiers, and use the counter itself only for display + milestone gating.
+- **`RequirementSet` omits `type`** — `TEST_ALL` is the default (all requirements must pass); only
+  `type="REQUIREMENTSET_TEST_ANY"` is ever explicit in base. Don't author `type="REQUIREMENTSET_TEST_ALL"`
+  (that id doesn't appear in base data; a bare set is the proven form).
