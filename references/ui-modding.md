@@ -538,3 +538,67 @@ the old registry. Consequences, all observed in current mods:
   source in `Base/modules/core/ui/` + `Base/modules/base-standard/ui/` — grep there
   for component tag names (`Controls.define('panel-...'`) the same way you grep for
   EFFECT names in data modding.
+
+## ⭐ The Dev Kit is the primary UI reference
+
+Firaxis ships **"Sid Meier's Civilization VII Development Tools"** (a separate Steam
+install under `steamapps/common/`). It has what the shipped game lacks:
+- **`Reference/`** — the **uncompiled** UI source: `.tsx` / `.ts` / `.scss` (SolidJS
+  + SCSS). Vastly clearer than the minified `.js` in `Base/modules`. When you need to
+  know how a screen builds an element/class/icon, read the `.tsx`/`.scss` here first.
+- **`Documentation/`** — Database Modding, modinfo, The Modifier System, Narrative
+  Events (Markdown). Authoritative; check before reverse-engineering.
+- **`Examples/`** — e.g. `fxs-new-policies` (a working new-traditions mod).
+- **FireTuner** (live scripting console) + **SteamWorkshopUploader**.
+
+Lesson (learned the hard way): **check the dev kit before declaring something
+impossible or iterating blind.** Reading `screen-policies.scss` + `policy-card.tsx`
+is what solved policy-card branding after many failed guesses.
+
+## Asset path rule for icons & CSS `url()`
+
+Reference an imported mod asset as **`fs://game/<modId>/<path-in-mod>`** — NOT a bare
+filename. E.g. mod id `metropolis-ascendant`, file `ui/icons/mad-dock-icon.png` →
+`fs://game/metropolis-ascendant/ui/icons/mad-dock-icon.png`. This holds for
+`IconDefinitions` `<Path>`, CSS `background-image: url(...)`, `Controls.loadStyle`,
+and JS `import`. PNGs used as data icons must also be `ImportFiles`'d in the modinfo
+(dev-kit "Database Modding" doc). A bare `fs://game/logo.png` silently fails to load
+(you get the frame/ring but a blank image) — this cost several debug cycles.
+
+## Branding / restyling base cards (policy-card recipe)
+
+Base **policy/tradition cards do NOT expose per-card art to data** — the card icon
+and background are computed in the UI JS. Confirmed dead ends (don't retry):
+- `IconDefinitions[TraditionType]` is never consulted for the card icon.
+- The card bg/icon derive from the card's `TraitType` (`bg-panel-<trait>` /
+  `civ_sym_<trait>`), BUT the engine forces the UI model's `TraitType` to
+  **`TRAIT_RANDOM`** for any tradition not owned by a civ — so a modded
+  `Traditions.TraitType` column is ignored for card art. Native recolor = impossible
+  for modded non-civ cards.
+
+**The working recipe = JS decorator (tag) + CSS override (style):**
+1. A `UIScripts` decorator runs a `MutationObserver` on `.policy-base-card` mounts.
+   There's **no TraditionType DOM attribute** — identify each card by matching its
+   displayed name (`.font-title.uppercase.text-sm.font-bold`) against
+   `GameInfo.Traditions` (`Locale.compose(t.Name)`), then tag yours with a
+   **`data-*` attribute** (e.g. `card.dataset.maCard='1'`). ⚠ Use a data-attr, NOT a
+   class — SolidJS re-renders wipe added classes (the base reapplies `class`
+   reactively); data-attrs and appended child nodes survive.
+2. `Controls.loadStyle('fs://game/<modId>/ui/x.css')` a stylesheet targeting
+   `[data-your-attr]` and override the card's **own** styles with `!important`:
+   - **Recolor**: override `background` / `border` (defined on `.policy-base-bg` /
+     `.tradition-base-bg` in `screen-policies.scss`).
+   - **Swap the icon**: the `Icon` component renders an **inline `background-image`
+     with no `!important`**, so `[data-your-attr] .policy-card-icon { background-image:
+     url(...) !important }` wins. To frame it like the stock icon: keep the inner
+     `.policy-card-icon` (base 38px, positioned by `-ml-5` to sit in the left margin
+     clear of text), add `border-radius:50% + border + background-color` to make a
+     badge, and `background-image:none` on `.policy-card-icon-backer` to hide the base
+     `accent_circle`. Overriding geometry (width/margin) tends to clip or overlap text
+     — prefer the base element's own position/size.
+
+Fragility is **cosmetic-only**: if a patch breaks the decorator, you lose the tint/
+logo, never the card's function (it still renders + slots via the base UI). This is
+the intended way to brand modded cards; a *dedicated custom slot type* does the
+opposite (it fails to render at all — see the government screen only supports
+Tradition/Policy/Crisis slot columns).
