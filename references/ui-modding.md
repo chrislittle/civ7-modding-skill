@@ -33,6 +33,7 @@ Everything in this reference is distilled from shipping, working Steam Workshop 
 - [Cross-mod integration](#cross-mod-integration)
 - [ui-next: the second UI stack](#ui-next-the-second-ui-stack)
 - [Debugging UI mods](#debugging-ui-mods)
+- [Colors: leaders, player-color CSS, plot tinting, tree icons](#colors-leaders-player-color-css-plot-tinting-tree-icons)
 
 ## Modinfo wiring for UI mods
 
@@ -263,6 +264,9 @@ Drawing on the map from a layer:
 - **VFX at plots** — `const grp = WorldUI.createModelGroup("MyGroup");
   grp.addVFXAtPlot("VFX_3dUI_Tut_SelectThis_01", plotCoord, {x:0,y:0,z:0});
   grp.clear()`.
+- **Flat colored plot fills / edges** — `WorldUI.createOverlayGroup` + `addPlotOverlay`
+  (see [Colors](#colors-leaders-player-color-css-plot-tinting-tree-icons) for the full
+  recipe — this is how ACB-style "tint tiles by yield/type" lenses are drawn).
 - Plot coordinates from an index: `GameplayMap.getLocationFromIndex(plotIndex)`.
 
 ## Interface modes and views
@@ -486,6 +490,12 @@ either match structurally (known position + expected value) or recompute from
 `GameInfo.ModifierArguments` (`Amount`/`Percent`) × live state — the tree then serves
 as a total-level validation.
 
+`getYields()` only answers for what **already exists**. To predict the yield of a
+constructible **not yet built** (planner/overlay mods — Map Tacks, City Planner), you
+must re-derive base + adjacency + owned-modifier yields from the data tables and live
+map yourself — the full algorithm is in
+[yield-preview-engine.md](yield-preview-engine.md).
+
 ## Cross-mod integration
 
 - **Expose an API**: attach a frozen object to `globalThis`
@@ -602,3 +612,95 @@ logo, never the card's function (it still renders + slots via the base UI). This
 the intended way to brand modded cards; a *dedicated custom slot type* does the
 opposite (it fails to render at all — see the government screen only supports
 Tradition/Policy/Crisis slot columns).
+
+## Colors: leaders, player-color CSS, plot tinting, tree icons
+
+Four independent color levers, distilled from shipping color mods (Atlas / Matt's
+Colours / SIB Configurator = leader colors; Ash's Color-Coded Buildings = plot tint;
+Orion's Bonus Icons+ = tree icons).
+
+### 1. Leader / player map colors (data — `Colors` + `PlayerColors`)
+
+A leader's map colors are two DB tables, edited game-scope (`UpdateDatabase`):
+
+- **`Colors`** = named color definitions. `(Type, Color, Color3D)` where the two color
+  columns are `"R,G,B,A"` strings in **0–255** (note: NOT hex, NOT 0–1). `Color` is the
+  UI/flat color, `Color3D` the in-world one (usually identical). Add with
+  `INSERT OR REPLACE INTO Colors (Type,Color,Color3D) VALUES ('MYCIV_PRIMARY',"100,44,148,255","100,44,148,255"), …`.
+- **`PlayerColors`** = per-leader assignment, keyed `WHERE Type='LEADER_X'`. Columns:
+  `PrimaryColor`, `SecondaryColor`, and three backup jerseys `Alt1PrimaryColor` /
+  `Alt1SecondaryColor` … `Alt3…` (used when two players would clash). Each holds a
+  `Colors.Type` string. Reassign with
+  `UPDATE PlayerColors SET PrimaryColor="MYCIV_PRIMARY" WHERE Type='LEADER_X';`.
+
+Convention that keeps colors legible: make secondary a near-white/near-black so icons
+and text (which the engine derives from the pair — see below) stay readable.
+
+### 2. Player-color CSS variables (JS/CSS — tint your own panels)
+
+The engine exposes each player's colors as a small palette you can stamp onto any
+element. This is how to make an MA panel/badge match the active player's colors.
+
+- **API:** `UI.Color.getPlayerColors(playerId)` → the raw pair;
+  `UI.Color.createPlayerColorVariants(pair)` derives `mainColor / textColor /
+  accentColor / moreColor / lessColor / tintColor` for primary & secondary plus an
+  `isPrimaryLighter` flag (text/accent are auto-blended toward white/black for
+  contrast — you don't compute contrast yourself).
+- **Stamp helper:** import from the game's `utilities-color` and call
+  `realizePlayerColors(element, playerId)` — it sets these CSS vars on the element:
+  `--player-color-primary`, `--player-color-primary-more/-less/-text/-accent`, and the
+  matching `--player-color-secondary-*`, and toggles class `primary-color-is-lighter`.
+  `realizeCivHeraldry(element, playerId)` does all that **plus** `--civ-pattern` and
+  `--civ-symbol` (the civ line/symbol icons, via
+  `Icon.getCivSymbolCSSFromCivilizationType`). `getPlayerColorValues(playerId)` returns
+  the same vars as an inline-`style` string.
+- **Then in CSS** just reference `var(--player-color-primary)` etc. To tint a game
+  **fxs border image** by player color use the engine CSS property
+  `fxs-border-image-tint: var(--player-color-primary);` (SIB's whole diplo-ribbon fix
+  is that one line, injected via a `<style>` appended to `document.head` + a body
+  class). Not a standard CSS prop — it's engine-specific.
+
+### 3. Tinting plots from a lens layer (`WorldUI` plot overlays)
+
+For "color the map by <data>" lenses (ACB tints each tile by its building's dominant
+yield). Inside a lens layer (`initLayer/applyLayer/removeLayer`, registered via
+`LensManager.registerLensLayer` — see [Lenses](#lenses-and-lens-layers)):
+
+```js
+this.overlayGroup = WorldUI.createOverlayGroup("MyOverlay", 1); // (name, zIndex)
+this.overlay = this.overlayGroup.addPlotOverlay();
+// colors are float4 RGBA in 0–1: {x:r/255, y:g/255, z:b/255, w:alpha}
+this.overlay.addPlots(plotArray, { fillColor: c, edgeColor: {x:c.x,y:c.y,z:c.z,w:0} });
+this.overlay.clear();                 // wipe before each redraw
+this.overlayGroup.setVisible(bool);   // show/hide the whole group
+```
+
+- `plotArray` = `[{x,y}, …]`. **Batch by color**: group all same-color plots and issue
+  one `addPlots` per color (ACB builds a `Map` keyed by the color string) — far cheaper
+  than per-plot calls across a full `GameplayMap.getGridWidth()×getGridHeight()` sweep.
+- `fillColor` fills the hex; `edgeColor` outlines it — set one's `w:0` to draw only the
+  other (fill-only, edge-only, or both = three render modes).
+- Redraw on the data events you care about (ACB listens to `ConstructibleAddedToMap` /
+  `ConstructibleRemovedFromMap`) and only when `this.visible`.
+- Reading tile constructibles for the color decision: `MapConstructibles.getConstructibles(x,y)`
+  → component IDs → `Constructibles.getByComponentID(cid)` → `GameInfo.Constructibles.lookup(item.type)`.
+
+### 4. Recoloring / reassigning tech & civic tree bonus icons
+
+Each tree-node bonus draws an icon via an **`IconAliases`** row (`ID` = the bonus's
+modifier key like `MOD_AQ_TECH_WALL_STRENGTH`, `OtherID` = an icon definition). To
+swap in your own art:
+
+1. Register the art in **`IconDefinitions`** `(ID, Path)` with an
+   `fs://game/<modId>/icons/<file>` path (extension optional; the PNG must also be
+   `ImportFiles`'d). See [Asset path rule](#asset-path-rule-for-icons--css-url).
+2. **Remap** the bonus to it in `IconAliases`. ⚠ **Gotcha (confirmed in Orion's
+   source): `UPDATE` on an existing `IconAliases` row silently does nothing** — you must
+   `DELETE FROM IconAliases WHERE ID='MOD_…';` then `INSERT INTO IconAliases (ID,OtherID)
+   VALUES ('MOD_…','MY_ICON');`.
+3. Run both via the modinfo **`<UpdateIcons>`** action — and register it in **both a
+   `scope="shell"` and a `scope="game"` ActionGroup** (icons show in shell menus and
+   in-game trees; miss one scope and half your icons revert).
+
+This is the clean way to give MA's custom tech/culture-tree fan-out bonuses legible,
+color-coded icons instead of inheriting a generic base icon.

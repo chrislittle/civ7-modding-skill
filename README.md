@@ -58,22 +58,91 @@ Code** so it reloads the skill.
 - **Project** (`<project>/.claude/skills/`) — the skill travels with one repo and is shared with anyone who
   clones it. Use this if you want the skill versioned alongside a specific mod project.
 
-## Generate the data references (first run)
+## Start here: ask an AI
 
-Four references — `references/effects-collections-catalog.md`, `references/display-names.md`,
-`references/progression-trees.md`, `references/constructibles-catalog.md` — are **not bundled** (they're bulk
-extractions of the base game's own data/text, so they're never redistributed). Generate them from your own
-installed copy of Civilization VII (one-time, and after each game patch):
+New to modding? The fastest way in is to **let an AI do it with you.** Each prompt below has three ways to use it:
 
-```bash
-python tools/gen-effects-catalog.py
-python tools/gen-names-trees.py          # display-names.md + progression-trees.md
-python tools/gen-constructibles-catalog.py
+- **[Ask Claude]** / **[Ask ChatGPT]** — opens a **new web chat** with the prompt already typed. Best for *learning and planning* — the web chat is smart about Civ VII, but it can't see your computer, your game files, or this skill.
+- **Copy** — hover the code block and click the 📋 icon (top-right). Paste it into **[Claude Code](https://claude.com/claude-code)** with this skill installed. That's where the AI can actually *run the scripts, read the game's data, write mod files, and deploy* — the buttons above only talk; Claude Code acts.
+
+> Rule of thumb: **web chat to understand, Claude Code to build.**
+
+### Learn the basics (great in the web chat)
+
+**What even is a Civ VII mod?**
+
+```text
+I'm brand new to Civilization VII modding. In plain language, explain what a mod actually is: the .modinfo manifest, the GameEffects modifier system (collection + effect + requirements), and how a single gameplay change reaches a player. Include one tiny worked example.
+```
+[![Ask Claude](https://img.shields.io/badge/Ask-Claude-D97757?style=flat&logo=anthropic&logoColor=white)](https://claude.ai/new?q=I%27m%20brand%20new%20to%20Civilization%20VII%20modding.%20In%20plain%20language%2C%20explain%20what%20a%20mod%20actually%20is%3A%20the%20.modinfo%20manifest%2C%20the%20GameEffects%20modifier%20system%20%28collection%20%2B%20effect%20%2B%20requirements%29%2C%20and%20how%20a%20single%20gameplay%20change%20reaches%20a%20player.%20Include%20one%20tiny%20worked%20example.) [![Ask ChatGPT](https://img.shields.io/badge/Ask-ChatGPT-10A37F?style=flat&logo=openai&logoColor=white)](https://chatgpt.com/?q=I%27m%20brand%20new%20to%20Civilization%20VII%20modding.%20In%20plain%20language%2C%20explain%20what%20a%20mod%20actually%20is%3A%20the%20.modinfo%20manifest%2C%20the%20GameEffects%20modifier%20system%20%28collection%20%2B%20effect%20%2B%20requirements%29%2C%20and%20how%20a%20single%20gameplay%20change%20reaches%20a%20player.%20Include%20one%20tiny%20worked%20example.)
+
+**Why does my mod show "enabled" but do nothing?** (the #1 beginner trap)
+
+```text
+In Civilization VII modding, why can a mod show "enabled" in the Add-Ons menu but apply nothing in game? List the most common silent-failure causes and exactly how to check each one.
+```
+[![Ask Claude](https://img.shields.io/badge/Ask-Claude-D97757?style=flat&logo=anthropic&logoColor=white)](https://claude.ai/new?q=In%20Civilization%20VII%20modding%2C%20why%20can%20a%20mod%20show%20%22enabled%22%20in%20the%20Add-Ons%20menu%20but%20apply%20nothing%20in%20game%3F%20List%20the%20most%20common%20silent-failure%20causes%20and%20exactly%20how%20to%20check%20each%20one.) [![Ask ChatGPT](https://img.shields.io/badge/Ask-ChatGPT-10A37F?style=flat&logo=openai&logoColor=white)](https://chatgpt.com/?q=In%20Civilization%20VII%20modding%2C%20why%20can%20a%20mod%20show%20%22enabled%22%20in%20the%20Add-Ons%20menu%20but%20apply%20nothing%20in%20game%3F%20List%20the%20most%20common%20silent-failure%20causes%20and%20exactly%20how%20to%20check%20each%20one.)
+
+**How do I install this skill into Claude Code?**
+
+```text
+Walk me through installing a Claude Code skill from a GitHub repo step by step (I'll give you the repo URL), then how to confirm Claude Code actually loaded it.
+```
+[![Ask Claude](https://img.shields.io/badge/Ask-Claude-D97757?style=flat&logo=anthropic&logoColor=white)](https://claude.ai/new?q=Walk%20me%20through%20installing%20a%20Claude%20Code%20skill%20from%20a%20GitHub%20repo%20step%20by%20step%20%28I%27ll%20give%20you%20the%20repo%20URL%29%2C%20then%20how%20to%20confirm%20Claude%20Code%20actually%20loaded%20it.) [![Ask ChatGPT](https://img.shields.io/badge/Ask-ChatGPT-10A37F?style=flat&logo=openai&logoColor=white)](https://chatgpt.com/?q=Walk%20me%20through%20installing%20a%20Claude%20Code%20skill%20from%20a%20GitHub%20repo%20step%20by%20step%20%28I%27ll%20give%20you%20the%20repo%20URL%29%2C%20then%20how%20to%20confirm%20Claude%20Code%20actually%20loaded%20it.)
+
+### Build with the skill (paste into Claude Code)
+
+These need Claude Code with the skill installed — it reads the references, runs the `tools/` scripts, writes files, and deploys. **Copy** each one in.
+
+**Make my first mod**
+
+```text
+Use the civ7-modding skill to scaffold my first mod: an Antiquity-age tradition that grants +2 Food and +1 Culture on the Palace. Produce the .modinfo, the data XML, and the GameEffects XML, then tell me how to deploy and test it.
 ```
 
-They auto-detect the install via `$CIV7_ROOT` → your Steam library folders (set `CIV7_ROOT` to override).
-Output lands in `references/` (and is `.gitignore`d so you never commit Firaxis data). Everything else in
-`references/` is authored and ships with the skill.
+**Generate all the local data references** (runs the Python scripts for you)
+
+```text
+Using the civ7-modding skill, generate its local data references: run each gen-*.py script in tools/ against my installed game, then summarize what each file produced and when I'd use it.
+```
+
+**Deploy and prove it works**
+
+```text
+Deploy my Civ VII mod to the game's Mods folder and verify it actually applied (Discovered - Enabled - Applied) using the skill's scripts. Report what you find.
+```
+
+**Debug a mod that does nothing**
+
+```text
+My Civilization VII mod shows enabled but does nothing. Use the civ7-modding skill's troubleshooting reference to diagnose it with me, checking the most likely causes first.
+```
+
+> **Tip:** the *Ask* links just pre-fill the message — you still press Enter. Want your own? Any prompt becomes a link with `https://claude.ai/new?q=` or `https://chatgpt.com/?q=` followed by your URL-encoded text.
+
+## Generate the data references (first run)
+
+A handful of references are **bulk extractions of the games'/SDK's own data and text**, so they're **not
+bundled** (never redistributed). You generate them once from your own install — and re-run after each game
+patch or DLC. Each has a script in `tools/`:
+
+```bash
+# --- Civilization VII (auto-detects the install via $CIV7_ROOT -> Steam libraries) ---
+python tools/gen-effects-catalog.py        # effects-collections-catalog.md  (every EFFECT_/COLLECTION_/REQUIREMENT_ + args)
+python tools/gen-names-trees.py            # display-names.md + progression-trees.md  (id->English names; tech/civic trees)
+python tools/gen-constructibles-catalog.py # constructibles-catalog.md  (every building/wonder/improvement + its Age)
+python tools/gen-cards-catalog.py          # cards-suzerain-governments-catalog.md  (all base+DLC cards / suzerain / govts)
+python tools/gen-civilopedia-concepts.py   # civilopedia-concepts.md  (the game's own Civilopedia mechanic prose)
+python tools/gen-devkit-docs.py            # dev-kit-official-docs.md  (Firaxis's SDK modding docs; needs the Civ VII Development Tools installed)
+
+# --- Optional: Civilization VI, for design inspiration (auto-detects via $CIV6_ROOT) ---
+python tools/gen-civ6-cards-catalog.py     # civ6-policies-governments-catalog.md  (Civ VI policies + governments)
+```
+
+Set `CIV7_ROOT` (or `CIV6_ROOT`, or `CIV7_DEVKIT_ROOT` for the dev-tools docs) to override auto-detection.
+Output lands in `references/` and is `.gitignore`d, so you never commit game data. Everything else in
+`references/` is authored and ships with the skill. Not sure which to run? Use the **"generate its local data
+references"** prompt in the section above — Claude Code will run them for you and explain each one.
 
 ## License
 

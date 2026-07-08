@@ -77,8 +77,14 @@ to treat the mod as new.
 | `<Name>` / `<Description>` | Shown in the Add-Ons UI. Can be literal text or `LOC_*` keys. **For line breaks in a multi-paragraph Description, use the `[N]` token — raw newlines are collapsed to spaces** (see below). |
 | `<Authors>` | Free text. |
 | `<Package>` | `Mod` for player mods. |
-| `<AffectsSavedGames>` | `1` if it changes gameplay (most gameplay mods). |
+| `<AffectsSavedGames>` | `1` if it changes gameplay (most gameplay mods) — can't be added/removed mid-game. `0` = UI/localization-only, toggleable anytime. **Defaults to `1` if omitted.** |
 | `<Version>` | **MUST be an integer.** See below. |
+| `<ShowInBrowser>` | `1`/`0` — show on the Add-Ons screen (default `1`). |
+| `<EnabledByDefault>` | `1`/`0` — enabled on first run if never toggled (default `1`). |
+| `<Package>` / `<PackageSortIndex>` | grouping/order hints — **not currently used by the UI.** |
+
+> An **empty `<Name>`** hides the mod from the Add-Ons screen but it still loads — an
+> occasional cause of "my mod runs but I can't find it in the list."
 
 ### Line breaks in `<Description>` — use `[N]`, not raw newlines
 
@@ -123,8 +129,11 @@ applies absolutely nothing, with no error anywhere.
   Gameplay mods depend on `base-standard`.
 - `<References>` — soft ordering: load after these *if present* (e.g. `core`). Use it
   to sequence relative to other content without making it mandatory.
+- `<ReverseReferences>` — the inverse: listed mods load **after** yours (force your rows
+  to win over another module's without editing that module). Pairs with `<Exclude>`.
 
-Both use `<Mod id="..." title="LOC_..."/>`.
+All three use `<Mod id="..." title="LOC_..."/>`. Every mod implicitly depends on `core`,
+`base-standard`, and the three age modules (`age-antiquity`/`-exploration`/`-modern`).
 
 ## ActionCriteria
 
@@ -136,6 +145,36 @@ Both use `<Mod id="..." title="LOC_..."/>`.
   is heavily Age-scoped; typically you write one criteria + one action group per Age
   (`AGE_ANTIQUITY`, `AGE_EXPLORATION`, `AGE_MODERN`) so each Age loads only its own
   rows. This also avoids duplicate-row collisions across Ages.
+
+**Modifiers on a `<Criteria>`:** `any="true"` = met if *any* child condition holds
+(default is ALL must hold); `inverse="1"` on a condition negates it
+(`<AgeInUse inverse="1">AGE_ANTIQUITY</AgeInUse>` = "not Antiquity").
+
+**Full criterion vocabulary** (from the official dev-kit docs — beyond `AlwaysMet` /
+`AgeInUse` these are documented but not all isolation-tested here; confirm behavior before
+relying on one):
+
+| Criterion | Met when |
+|-----------|----------|
+| `AlwaysMet` / `NeverMet` | always / never. |
+| `AgeInUse` | current Age == value (`AGE_ANTIQUITY` / `AGE_EXPLORATION` / `AGE_MODERN`, or a modded age). |
+| `AgeWasUsed` | value Age was played in a *previous* Age of this game (NOT the current one; Advanced Starts don't count). |
+| `AgeEverInUse` | `AgeInUse` OR `AgeWasUsed`. |
+| `ConfigurationValueMatches` | a setup config parameter equals a value — child `<Group>` (ConfigurationGroup) + `<ConfigurationId>` (ConfigurationKey) + `<Value>`. See the advanced-setup note below. |
+| `ConfigurationValueContains` | same, but `<Value>` is a comma-delimited list; met if the parameter matches ANY. |
+| `MapInUse` | current map == the `File` column value, e.g. `{base-standard}maps/continents-plus.js`. |
+| `RuleSetInUse` | ruleset in use (default only `RULESET_STANDARD`; more via mods/DLC). |
+| `GameModeInUse` | one of `WorldBuilder` / `SinglePlayer` / `HotSeat` / `MultiPlayer`. |
+| `LeaderPlayabe` *(sic — spelled that way in the docs)* / `CivilizationPlayable` | the leader/civ is a valid setup option (civ availability is Age-dependent). |
+| `ModInUse` | a mod with the given `id` is active (user mod OR Firaxis DLC id). Optional `<Version>` sub-element checks the version **EXACTLY** — `1` ≠ `1.0`. |
+
+> **Advanced-Setup / mod-options gating.** `ConfigurationValueMatches` is the *officially
+> documented* way to gate an action group on a setup-screen parameter — reference the
+> frontend `Parameters` table for valid `Group`/`ConfigurationId`/`Value`. Note this gates
+> *whether an action group loads at game start*, decided on the setup screen; it is not a
+> live in-game toggle. A separate self-contained module keyed on `ModInUse` remains the
+> most bulletproof on/off switch. Provide any custom parameter itself via a `scope="shell"`
+> group.
 
 ## ActionGroups
 
@@ -170,7 +209,29 @@ Each `<ActionGroup>` ties a `criteria` to a set of `<Actions>`.
     **`scope="shell"`** group writes the *frontend/config* database (hotkey
     `InputActions` rows live there), not the gameplay database.
 
-Paths are **relative to the modinfo's folder**, forward slashes.
+Paths are **relative to the modinfo's folder**, forward slashes. You can also load a file
+**from another mod** by prefixing the path with that mod's id in curly braces:
+`<Item>{other-mod-id}data/foo.xml</Item>`.
+
+**Full action-type list** (official dev-kit docs; the common ones are covered above):
+
+| Action | Loads |
+|--------|-------|
+| `UpdateDatabase` | gameplay OR frontend DB (per group `scope`) — `.xml`/`.sql`, incl. `<GameEffects>`. |
+| `UpdateText` | Localization DB (`.xml`/`.sql`). |
+| `UpdateIcons` / `UpdateColors` | Icons / Colors DBs (separate from gameplay — see the UpdateIcons note above; Colors work the same way). |
+| `UIScripts` | register `.js` UI-runtime modules. |
+| `ImportFiles` | mount assets into the VFS (PNG/HTML/CSS/JS); same relative path = shadow-replace a base file. |
+| `UIShortcuts` | load `.html` panels into the in-game **debug** menu (needs `EnableDebugPanels 1`). |
+| `UpdateVisualRemaps` | Visual Remap DB — relink one entity's visuals onto another asset (its **own** action; putting VisualRemaps in `UpdateDatabase` crashes — see [custom-units.md](custom-units.md)). |
+| `MapGenScripts` | a `.js` loaded during map generation then unloaded. |
+| `ScenarioScripts` | a gameplay `.js` script. |
+| `UpdateArt` | art files — not useful until art tools ship. |
+
+**`<Exclude>` — suppress another module's action group.** Inside an `<ActionGroup>`, an
+`<Exclude mod_id="X" action_group_id="Y"/>` prevents that *other* mod's action group from
+loading when yours does (compatibility-patch / total-override pattern). Mind load order —
+`<ReverseReferences>` helps force yours to win.
 
 A quick way to reason about a confusing mod: list its action groups and ask, for each,
 "what criteria gates it, and is it `scope="game"`?" An action group whose criteria is

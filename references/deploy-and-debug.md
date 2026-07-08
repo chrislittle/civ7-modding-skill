@@ -10,6 +10,7 @@ discovered, enabled, applied — rather than assuming it.
 - [The three states (and how to confirm each)](#the-three-states)
 - [Reading the logs](#reading-the-logs)
 - [Inspecting the Mods.sqlite registry](#inspecting-the-modssqlite-registry)
+- [Dev settings (AppOptions.txt)](#dev-settings-appoptionstxt)
 - [Live-poking the game: FireTuner (and the UI-mod dev loop)](#live-poking-the-game-firetuner-and-the-ui-mod-dev-loop)
 - [The litmus mod](#the-litmus-mod)
 
@@ -95,6 +96,25 @@ Copy-Item $src "$env:TEMP\Mods_copy.sqlite" -Force
 - `Mods.Disabled`: NULL/0 = enabled, 1 = disabled.
 - `ModProperties` holds the **Version the engine actually parsed** — if your modinfo
   says `1` but this shows `0`/empty, you've found a version-parse problem.
+
+## Dev settings (AppOptions.txt)
+
+`AppOptions.txt` sits next to the `Mods` folder (same directory as `Logs`). Options are
+commented out with a leading `;` and default off — **remove the `;` and set the value to
+`1`** to enable. The five worth turning on for modding (per the official dev-kit
+"Getting Started" doc):
+
+| Setting | Effect |
+|---------|--------|
+| `CopyDatabasesToDisk 1` | after a game starts, dumps the live DBs as `.sqlite` in the `Debug` folder (`gameplay-copy.sqlite`, frontend, localization) — the definitive way to see **every** table/column/value available, including engine-defined types not present in `Base/modules` XML. Overwritten on exit-to-menu / new game. |
+| `EnableTuner 1` | lets **FireTuner** connect (see below). |
+| `EnableDebugPanels 1` | in-game debug panels via the `` ` `` (backtick) key; also where `UIShortcuts` HTML panels appear. |
+| `UIDebugger 1` | inspect the running UI's HTML/CSS/JS from **Google Chrome** (buggy in other browsers). |
+| `UIFileWatcher 1` | hot-reloads already-loaded UI files as you edit them — no restart for UI-only changes (DB/text still need a full restart). |
+
+`CopyDatabasesToDisk` is the answer whenever you need to confirm an effect/requirement
+argument name or a table's real columns and grepping `Base/modules` isn't enough — the
+runtime DB has the complete picture.
 
 ## Live-poking the game: FireTuner (and the UI-mod dev loop)
 
