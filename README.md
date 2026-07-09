@@ -94,16 +94,16 @@ Walk me through installing a Claude Code skill from a GitHub repo step by step (
 
 These need Claude Code with the skill installed — it reads the references, runs the `tools/` scripts, writes files, and deploys. **Copy** each one in.
 
-**Make my first mod**
-
-```text
-Use the civ7-modding skill to scaffold my first mod: an Antiquity-age tradition that grants +2 Food and +1 Culture on the Palace. Produce the .modinfo, the data XML, and the GameEffects XML, then tell me how to deploy and test it.
-```
-
-**Generate all the local data references** (runs the Python scripts for you)
+**Step 1 — Generate the local data references first (prerequisite).** The skill's most valuable references are bulk extractions of *your own* installed game's data — every effect/requirement, the tech & civic trees and what each node unlocks, units, leaders, civilizations, mementos, religion, native Triumphs, cards, resources, constructible placement/adjacency. They aren't bundled (never redistributed), and **the AI grounds its work in them** — so run this once before anything else, and re-run after each game patch or DLC:
 
 ```text
 Using the civ7-modding skill, generate its local data references: run each gen-*.py script in tools/ against my installed game, then summarize what each file produced and when I'd use it.
+```
+
+**Then — make my first mod**
+
+```text
+Use the civ7-modding skill to scaffold my first mod: an Antiquity-age tradition that grants +2 Food and +1 Culture on the Palace. Produce the .modinfo, the data XML, and the GameEffects XML, then tell me how to deploy and test it.
 ```
 
 **Deploy and prove it works**
@@ -134,6 +134,14 @@ python tools/gen-constructibles-catalog.py # constructibles-catalog.md  (every b
 python tools/gen-cards-catalog.py          # cards-suzerain-governments-catalog.md  (all base+DLC cards / suzerain / govts)
 python tools/gen-civilopedia-concepts.py   # civilopedia-concepts.md  (the game's own Civilopedia mechanic prose)
 python tools/gen-devkit-docs.py            # dev-kit-official-docs.md  (Firaxis's SDK modding docs; needs the Civ VII Development Tools installed)
+python tools/gen-units-catalog.py          # units-catalog.md  (every unit: class/stats/cost/unlock + commander & promotion trees)
+python tools/gen-leaders-catalog.py        # leaders-catalog.md  (every leader -> the real EFFECT_ behind its ability)
+python tools/gen-civilizations-catalog.py  # civilizations-catalog.md  (every civ: ability + uniques + which have a unique quarter)
+python tools/gen-mementos-catalog.py       # mementos-catalog.md  (every Memento + effect + the anti-duplication "taken effects" index)
+python tools/gen-religion-catalog.py       # religion-and-beliefs-catalog.md  (all beliefs by class + the pantheon/relic wiring)
+python tools/gen-triumphs-catalog.py       # triumphs-legacies-catalog.md  (all native Triumphs + the "don't-duplicate" metric list)
+python tools/gen-constructibles-placement.py # constructibles-placement-adjacency.md  (placement land/water/terrain + adjacency yields)
+python tools/gen-resource-effects-catalog.py # resource-effects-catalog.md  (every resource -> its concrete effect: yield/combat/production)
 
 # --- Optional: Civilization VI, for design inspiration (auto-detects via $CIV6_ROOT) ---
 python tools/gen-civ6-cards-catalog.py     # civ6-policies-governments-catalog.md  (Civ VI policies + governments)
