@@ -704,3 +704,106 @@ swap in your own art:
 
 This is the clean way to give MA's custom tech/culture-tree fan-out bonuses legible,
 color-coded icons instead of inheriting a generic base icon.
+
+### 5. Custom-civ art & the "Art Fixes" compat shim
+
+A full custom **civilization** ships art through four mechanisms (worked example: *Matt's
+Civs: Ireland*, workshop `3506935009`):
+
+- **`ImportFiles`** the raw assets — the `.png` **and** its extensionless twin (the engine
+  references textures by bare ID). Import in **both** `scope="shell"` and `scope="game"`
+  ActionGroups (shell = setup/civ-select, game = in-game); miss a scope and that half of
+  the UI shows nothing.
+- **`<UpdateIcons>` → `icons.xml`** registers them: `<Icons>` declares `ID` + `Context`
+  (`DEFAULT` / `BACKGROUND` / `BACKGROUND_VERT`); `<IconDefinitions>` maps `ID`(+`Context`
+  +`IconSize`) → a `Path`; `<IconAliases>` points a bonus at an existing icon. Path flavors:
+  mod-relative extensionless (`<modId>/icons/<file>`), **`blp:<name>` = reuse a base-game
+  texture** (`blp:CG_Rome_Colosseum_VERT`), or `fs://game/…` absolute.
+- **`<UpdateVisualRemaps>` → `visual-remaps.xml`** reuses **3D in-world models** (distinct
+  from the 2D `blp:` icons above): `<Row><Kind>BUILDING</Kind><From>BUILDING_MY_THING</From>
+  <To>BUILDING_RAILYARD</To></Row>` gives a custom building/unit a real model with zero 3D
+  art. (A sibling remap that renames the base type with a trailing `_` via `sql/icons.sql`
+  frees the original ID for the custom one to remap onto.)
+- Loading splash = `BACKGROUND`-context icons at `IconSize` 720/1080; age-transition
+  cinematics = `.webm` via `movies.xml`.
+
+**The catch — base UI silently drops modded-civ art in ~5 spots.** The engine's texture
+pipeline prefixes custom asset paths with its atlas scheme `blp:`, which only resolves
+built-in textures — so `blp:fs://…` and `blp:bg-panel-<civ>` render nothing. The community
+dependency **Custom Civ Art Fixes** (Slothoth, workshop `3735898897`) is a generic
+`<UIScripts>` shim (loaded in both scopes) that monkeypatches the fixes at runtime:
+
+- `WorldUI.addBackgroundLayer` override → the post-select **splash**: if the texture is a
+  registered custom civ, render the art as a full-screen **DOM overlay `<div>`** instead
+  (engine layer → CSS fallback). Driven by a one-row table `CivsWithoutBackgrounds
+  (CivilizationType, ArtPath)` the civ mod populates with a single `INSERT` (the only
+  per-civ input needed; the other four fixes are automatic).
+- `CSSStyleDeclaration.prototype.setProperty` override + a `MutationObserver` → globally
+  rewrites `blp:fs://…`→`fs://…` and `blp:bg-panel-X`→ the mapped URL, catching inline
+  styles on the **game-select chooser cards, age-transition cards, and diplomacy golden
+  icon**.
+- `Icon.getCultureIconFromProgressionTreeNodeDefinition` override → fixes the **shared
+  culture-tree node icon** for anachronistic civs: when a `ProgressionTreeNodes` row is
+  flagged **`CivInjectedIcon`**, it substitutes the player civ's `cult_<civ>` icon.
+
+**When this matters:** only for a full custom **civilization**. A custom **progression tree
+granted to all players** (e.g. an MA-wide "Ascendancy" tree) is *not* a civ — the splash,
+chooser-card, and diplomacy fixes never fire, and its nodes use plain `IconString` /
+`IconAliases` (section 4), which already work without the shim. Reach for Art Fixes (and
+`CivInjectedIcon`) only if you build an actual civ or a per-civ-injected culture node.
+
+### 6. Mutating authoritative gameplay from a UIScript (the sanctioned RPC)
+
+The common belief is "a mod's `<UIScripts>` (App UI isolate) can't change gameplay — the
+gameplay isolate is walled." That's **only half true**, and the distinction is sharp
+(verified in-game 2026-07-10, and by the shipping *Building Demolisher* mod, workshop
+`3741851079`):
+
+- **WorldBuilder debug map-writes are INERT/transient** from a UIScript.
+  `WorldBuilder.MapPlots.setOwnership(playerId, loc)` and `…setResource(...)` report a change
+  but it does not render, does not yield, and **does not survive save/reload**. Do not rely
+  on them for durable state.
+- **The sanctioned native-operation RPC IS authoritative and DURABLE.**
+  `Game.PlayerOperations.sendRequest(playerId, "CREATE_ELEMENT" | "DESTROY_ELEMENT", args)`
+  writes real, persistent game state from the UI isolate:
+
+```js
+// CREATE a rural district (auto-places the terrain-appropriate improvement, e.g. Farm):
+Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT",
+  { Kind: "DISTRICT", Type: "DISTRICT_RURAL", Location: {x,y}, Owner: owner });
+// CREATE a specific constructible/improvement:
+Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT",
+  { Kind: "CONSTRUCTIBLE", Type: "BUILDING_…", Location: {x,y}, Owner: owner });
+// DESTROY a district or constructible (get the id first):
+const d = Districts.getIdAtLocation(loc);            // {owner, id}
+Game.PlayerOperations.sendRequest(owner, "DESTROY_ELEMENT",
+  { Kind: "DISTRICT", Owner: d.owner, LocalID: d.id });
+// pre-check (optional diagnostic): returns {Success:bool}
+Game.PlayerOperations.canStart(owner, "CREATE_ELEMENT", args, false);
+```
+
+- Helper reads: `Districts.getAtLocation(loc)` / `getIdAtLocation(loc)`,
+  `district.getConstructibleIdsOfClass(ConstructibleClasses.IMPROVEMENT)`,
+  `GameplayMap.getOwner(x,y)` (all work in UI ctx).
+- **Trigger it from a unit button via the "fake Great Person" pattern** — the cleanest
+  UI→action hook: give a unit `UNIT_CLASS_GREATPERSON` + `AvailableInTimeline="false"` and a
+  `GreatPersonIndividuals` row with `ActionCharges` + `ActionRequires*` gates; its Activate
+  press fires `engine.on("UnitGreatPersonActivated", cb)` in the UIScript. See
+  [custom-units.md](custom-units.md) for the full unit data. (*Building Demolisher* grants the
+  unit via a narrative story's `EFFECT_CITY_GRANT_UNIT`, human-only.)
+
+**⚠ Hard limits — what this does NOT give you:**
+- **`CREATE_ELEMENT` tiles are PLAYER-owned, not city-attached.** The tile shows *your*
+  ownership + the improvement + tile yields, but **no city works or banks them** — it's an
+  orphan outside every city's territory. The only levers that fold a plot into a city's
+  *working* territory are `city.Growth.claimPlot` (gameplay-isolate only, a no-op in a
+  UIScript) and CityCommands `EXPAND` / `PURCHASE` (C++-capped at the 3-hex city radius). So
+  this is **not** a path to working ring-4/5 tiles — that wall stands (see
+  [tile-ownership-and-radius.md](tile-ownership-and-radius.md)).
+- Runs as the local player; **MP-desync is unverified** (the RPC is the deterministic
+  sanctioned channel, so safer than WorldBuilder writes, but confirm before shipping MP).
+
+**Good for:** live, durable **razing / rebuild** (create + destroy districts and
+constructibles — a cleaner route than overbuild/REPLACE gymnastics; see
+[razing-and-conquest.md](razing-and-conquest.md)), resource removal, and terrain/district
+edits that must persist.

@@ -301,6 +301,17 @@ and discovery sites spawn ≥3 tiles from major starts = exactly the ring-3–6 
 discovery-investigation story can seed a Surveyor-claimable resource there, all data-only. Full system
 writeup: [narrative-events.md](narrative-events.md).
 
+**UI-isolate RPC route — TRIED & CLOSED 2026-07-10 (wall reconfirmed):** a shipping mod's
+`<UIScripts>` file *can* write durable authoritative state via the sanctioned RPC
+`Game.PlayerOperations.sendRequest(owner,"CREATE_ELEMENT",{Kind:"DISTRICT",Type:"DISTRICT_RURAL",
+Location,Owner})` — verified to create a real Rural district + Farm that survives save/reload
+(details: [ui-modding.md](ui-modding.md) section 6). BUT the created tile is **player-owned and
+orphaned — no city works or banks it**, because nothing UI-reachable folds an out-of-range plot
+into a city's *working* territory (`claimPlot` is gameplay-isolate only; `EXPAND`/`PURCHASE` are
+ring-3 capped). And `WorldBuilder.MapPlots.setOwnership` from a UIScript is inert/transient (no
+border, no yield, no persistence). So the ring-4/5 **yield** goal stays blocked on the same
+city-territory wall — the RPC is a "place a district anywhere" primitive, not a claim path.
+
 Design rule worth carrying into any use of these mechanics: do NOT gate static-world effects
 (appeal, wonder/terrain adjacency) behind per-Age tech/civic nodes — they would wrongly blink
 off at Age rollovers; keep them binary and condition-gated. Yields are fine to re-gate/scale

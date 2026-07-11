@@ -99,9 +99,50 @@ gate on *total footprint* (section 5) and treat a hemisphere split as an optiona
 requirement. `REQUIREMENT_PLAYER_HAS_X_SETTLEMENTS_FOREIGN_HEMISPHERE Count=0` cleanly detects a
 "no reachable Distant Lands settled" (≈ Pangaea) situation if you want a fallback.
 
+## 7. Base-game tall amplifiers — reconcile a new bonus BEFORE adding it [DATA]
+
+A bonus that looks balanced *in isolation* can break because the **base game already ships strong
+amplifiers on the same axis**, and they stack **additively on the same (tall) capital**. Section 3 warns
+that N cities = N× output; this is the dual warning for a single dense city: your `+X per <thing>` lands
+*on top of* the native `+Y per <thing>`, so the effective rate is `X+Y`, not `X`. The base-game
+per-mementos anti-dup list lives in `mementos-catalog.md`; the **non-memento** amplifiers below were the
+blind spot (uncatalogued until an MA combo audit surfaced them). **Before adding a mod bonus on any of
+these axes, check what already pays into it and size against the sum.**
+
+- **≤3-cities attribute DOUBLERS [DATA] — the native tall lane.** Several Attribute-tree tier-7/6 nodes
+  *double* their effect when the player has ≤3 cities (implemented as a second modifier gated
+  `REQUIREMENT_PLAYER_HAS_X_SETTLEMENTS RequiredCount=4` on the wide side): **Scientific 07** (+1→+2
+  Science/**specialist**), **Cultural 07** (+1→+2 Culture/**specialist**), **Economic 07** (+1→+2
+  **Resource capacity**), **Expansionist 06** (+10→+20% **specialist-maintenance** discount). ⚠ These are
+  *themselves tall-gated*, so they **co-activate with any tall mod** — a per-specialist or per-pop mod
+  bonus meets its biggest native counterpart precisely in the tall build it targets.
+- **Per-specialist mementos [DATA]:** The Analects (+1 Science/specialist), Altar Set (+1 Culture/
+  specialist), Mascapaycha (+1 Gold/specialist, +1 more near Mountains). Plus leaders **Confucius** (+2
+  Science/specialist), **Abbasid**/**Han**/**Ottomans** (Kulliye +3 Cul +2 Gold per specialist).
+- **Per-Quarter & terrain PANTHEONS [DATA]** (Altar-keyed, Antiquity; ageless while the Altar stands):
+  **Earth Goddess** (+1 Happiness per adjacent **Mountain AND per Natural Wonder**), **God of Wisdom**
+  (+1 Science per **Quarter**), **Goddess of Festivals** (+1 Culture per Quarter), **God of Revelry** (+1
+  Happiness per **Resource** tile), **Sacred Waters** (+1 Happiness per Coast/Lake/River). Exploration
+  belief **Salat** = every Building +1 Happiness Temple adjacency. A mod's per-Quarter / mountain /
+  appeal / per-resource bonus stacks straight onto these.
+- **Appeal / mountain civs [DATA]:** **Heian** (DLC) is mechanically an appeal-yield engine (Breathtaking
+  rural Culture + wonder→Appeal); **Inca**/**Nepal** grant Mountain *workability* + mountain adjacency;
+  **Pachacuti**/**Maurya**/**Silla**/**Bulgaria** pay per adjacent Mountain. Any Arcadia/appeal/mountain
+  mod bonus doubles on these — decide accept-and-tune vs exclude at encode.
+- **Per-suzerain [DATA]:** attribute **Political 07** (+2 Culture AND +2 Science per suzerain), **Siam**,
+  **Tecumseh**, mementos Poteskwate/Wampum. Multiple mod sources on one per-suzerain lever compound with
+  these into a currency-feedback runaway.
+
+**Rule:** reducing a mod's *internal* mono-stacking (don't let several of your own cards pay one lever)
+is necessary but not sufficient — the native stack persists and is *intended* for tall, so the lever is
+**magnitude**: size the mod bonus against `native + mod` on a saturated tall capital, not the mod alone.
+
 ## Related
 
 - Age-scaling vs static effects: don't per-Age-node-gate static-world effects (they'd blink off at Age
   rollovers) — see the mod's own design notes; yields are fine to re-scale per Age (section 2).
 - Effect argument names are unguessable — confirm against `effects-collections-catalog.md` and a
   base-game example before building (per the skill's core workflow).
+- Full per-axis amplifier rosters (which leader/civ/memento/belief pays into each of 12 stacking axes)
+  live in the catalogs: `leaders-catalog.md`, `civilizations-catalog.md`, `mementos-catalog.md`,
+  `religion-and-beliefs-catalog.md`. Reconcile a new bonus against them, base **and DLC**.

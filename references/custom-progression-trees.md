@@ -41,7 +41,18 @@ special-case `ProgressionTreeType.includes("MAIN")` to float the main tree first
 
 A non-main tree is **hidden by default**. Reveal it one of three ways:
 
-1. **`RevealRequirementSetId` on the ProgressionTrees row** — evaluated live.
+1. **`RevealRequirementSetId` on the ProgressionTrees row** — evaluated on gameplay EVENTS,
+   not continuously. ✅ In-game verified (2026-07-09): **`REQUIREMENT_TRIUMPHS_COMPLETED`
+   (MinCount=1) works here** — a hidden tree revealed mid-game the moment the player
+   completed a Triumph, even though base only uses that requirement in unlock/challenge
+   contexts. So "earn a feat → a new tree/branch appears" is fully buildable.
+   **⚠ But an ALWAYS-TRUE reveal reqset does NOT reveal the tree at Age start** (in-game
+   2026-07-09: a tree whose set held only base `REQ_AGE_IS_EXPLORATION` stayed hidden on
+   turn 1 of EX with the mod fully applied). Every base reveal-reqset condition flips on an
+   event (found religion / completed node / completed triumph) — the set seems to get its
+   evaluation kick from those events. **For an always-visible tree, use route 2 (the effect),
+   never an always-true reqset.** Reveal-reqsets are for genuinely conditional,
+   event-flipped reveals.
    Base: Theology = founded-a-religion + age check; Ideologies =
    `REQUIREMENT_PLAYER_HAS_COMPLETED_PROGRESSION_TREE_NODE` on Political Theory
    (age-modern/data/progression-trees-culture-common.xml). For an always-visible tree, use a
@@ -71,6 +82,12 @@ Node-granted `KIND_MODIFIER` targets attach with the player as owner. Base shape
 tree UI prints that string on the node card). City-wide yields: unlock a `KIND_TRADITION`
 whose `TraditionModifiers` use `COLLECTION_PLAYER_CITIES` (normal tradition plumbing).
 
+⚠ **Card/tooltip text needs icon markup** — a plain "+2 Culture" renders without the yield
+icon and looks off next to base cards. Base style (copy it):
+`[B]+2 [icon:YIELD_CULTURE][/B] Culture in all Cities.` — `[icon:YIELD_*]` inline,
+`[B]…[/B]` bold around the amount+icon, optional `[TIP:LOC_…]…[/TIP]` concept links
+(see any base `LOC_TRADITION_*_DESCRIPTION`).
+
 ## Limits / cautions
 
 - **Culture trees only.** `EFFECT_PLAYER_REVEAL_CULTURE_TREE` has no TECH twin (0 hits in the
@@ -79,8 +96,46 @@ whose `TraditionModifiers` use `COLLECTION_PLAYER_CITIES` (normal tradition plum
 - **Trees are per-Age** (`AgeType` is required). Researched-node modifiers do not survive the
   Age transition — so per the static-functions design rule, never deliver static-world effects
   (appeal, wonder/terrain adjacency) through a per-Age tree node; yields/caps/slots are fine.
-- **AI**: unverified whether AI researches a modded tree (advisories included as a hint).
-  Watch an AI game before shipping anything competitive.
+- **⚠ Carrying a TRADITION across Ages — the definition must load in EVERY Age.** Each Age
+  rebuilds the database from the action groups whose criteria match, so a tradition declared
+  only in an age-scoped group **ceases to exist** after the flip (empirically bitten
+  2026-07-09: an AQ-unlocked Tradition-slot card vanished from the EX government screen).
+  Base loads ALL of `age-antiquity/data/traditions.xml` under **`always`** criteria — do the
+  same: declare the Tradition row + its `TraditionModifiers` + the modifiers themselves in an
+  always-criteria group; keep only the node UNLOCK in the age group. Related mechanics seen
+  in base (config/civics-traditions.xml + age modinfos): trait-tagged traditions
+  **auto-unlock at Age start from persistent civ/leader traits** (`IgnoreInitializeUnlock`
+  opts out — so "traditions the player never researched" can appear via traits);
+  `ObsoletesTraditionType` = a later-Age card that replaces an earlier one (Sales and Trade
+  I→II — the upgrade-chain idiom); Traditions may carry an `AgeType` column in
+  Test-of-Time-mode data; and the `AgeAtOrBefore` modinfo criterion is base's "persist into
+  later Ages" scope for map-standing content. **⚠ CONFIRMED in-game (2026-07-09): a trait-less
+  tradition's unlock STATE does NOT survive the Age flip** — even with the definition
+  always-loaded in both Ages, a card unlocked (and slotted!) in AQ was gone from the EX
+  government screen. Tradition "carry" in Civ VII = persistent TRAITS re-unlocking each Age,
+  not remembered unlocks. And ❌ **Triumph completions do NOT persist across Ages either**
+  (in-game 2026-07-09: a reveal modifier gated on `REQUIREMENT_TRIUMPHS_COMPLETED` MinCount=1
+  stayed inactive at EX load for a player holding an AQ Triumph — counting is
+  current-Age-only). So cross-Age carry has exactly two vehicles: the native **Dedication**
+  (`AdvancedStartCards`) layer, or a **next-Age re-grant node/choice** (the syncretism
+  pattern below).
+  **Firaxis's own carry playbook = re-grant per Age, never remember** (confirmed by the
+  Test-of-Time SYNCRETISM system): a Time-Tested civ's signature tradition is re-granted as
+  an Age-appropriate NEW card each Age (`CivSelfSyncretismUnlocks` →
+  `TRADITION_<CIV>_SYNCRETISM_<AGE>` + a bonus Tradition slot), with `ObsoletesTraditionType`
+  swapping out the previous version — the upgrade-chain idiom (Sales and Trade I→II). A mod
+  wanting "the same card across Ages" should do likewise: per-Age unlock vehicle + I/II/III
+  chain. Related syncretism vocabulary: `EFFECT_PLAYER_GRANT_SYNCRETIC_CHOICE` = a native
+  modifier-grantable **pick-one choice screen** ("adopt an associated civ's uniques or affirm
+  your own traditions"; choice pools = `LeaderSyncretismUnlocks` / `CivSelfSyncretismUnlocks` /
+  the base-EMPTY `CivilizationSyncretismUnlocks` hook — age-antiquity/data/
+  unlocks-syncretism.xml); `CanSteal="false"` on a tree node exempts it from syncretic
+  adoption. ⚠ Whether the choice screen works outside Test-of-Time mode = unprobed.
+- **AI**: ✅ verified 2026-07-09 (FireTuner readout, turn ~50) — **AI players DO research a
+  modded tree** (2 of 5 AIs had researched nodes; one AI even triggered the
+  Triumph-conditioned hidden-branch reveal and was researching the branch). Uptake is
+  heterogeneous (3 of 5 showed none at that point), so don't assume universal adoption —
+  include `ProgressionTree_Advisories` rows and calibrate at high difficulty.
 - Nodes cost **Culture** and compete with the main civics tree for it — a custom tree has
   built-in opportunity cost, same as Theology/civ-unique trees.
 

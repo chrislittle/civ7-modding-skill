@@ -3,6 +3,14 @@
 Everything here was verified against installed 1.4.1 + DLC data **and** in-game testing (Metropolis Ascendant
 issue #3, 2026-07-02). Read before building any "reward for taking/razing a city" or "make razing viable" feature.
 
+> **Live create/destroy primitive (UI-isolate RPC):** for a scripted "demolish this district"
+> or "rebuild this tile" mechanic outside the native raze timeline, a mod `<UIScripts>` file can
+> durably destroy/create districts & constructibles via
+> `Game.PlayerOperations.sendRequest(owner,"DESTROY_ELEMENT"|"CREATE_ELEMENT",args)` — authoritative,
+> survives save/reload, proven by the *Building Demolisher* mod. Full API + the fake-Great-Person
+> trigger + caveats: [ui-modding.md](ui-modding.md) section 6. A cleaner route than overbuild/REPLACE
+> for targeted tile relief.
+
 ## The base-game razing model (what you're working against)
 
 - **Razing takes multiple turns**, and the duration is **driven by the settlement's population** (Civilopedia: *"the

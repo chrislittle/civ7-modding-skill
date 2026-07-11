@@ -160,6 +160,7 @@ relying on one):
 | `AgeInUse` | current Age == value (`AGE_ANTIQUITY` / `AGE_EXPLORATION` / `AGE_MODERN`, or a modded age). |
 | `AgeWasUsed` | value Age was played in a *previous* Age of this game (NOT the current one; Advanced Starts don't count). |
 | `AgeEverInUse` | `AgeInUse` OR `AgeWasUsed`. |
+| `AgeAtOrBefore` | base-game-attested (age-antiquity.modinfo `antiquity-age-persist`): loads content that must remain valid in LATER Ages too (AQ constructibles standing on the map in EX/MO, legacy civs). Semantics ≈ "the named Age is at or before the game's current Age." |
 | `ConfigurationValueMatches` | a setup config parameter equals a value — child `<Group>` (ConfigurationGroup) + `<ConfigurationId>` (ConfigurationKey) + `<Value>`. See the advanced-setup note below. |
 | `ConfigurationValueContains` | same, but `<Value>` is a comma-delimited list; met if the parameter matches ANY. |
 | `MapInUse` | current map == the `File` column value, e.g. `{base-standard}maps/continents-plus.js`. |
