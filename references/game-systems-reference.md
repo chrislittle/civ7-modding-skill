@@ -203,6 +203,22 @@ Influence cost scales **+20% per active befriend/already-owned CS**, and is **do
 Exploration, tripled in Modern**. (Suzerain *bonuses* themselves are in
 [city-states-suzerain.md](city-states-suzerain.md).)
 
+**⭐ THE EXACT INFLUENCE COSTS (added 2026-07-13 after under-sizing a reward against them —
+size ANY Influence-denominated content against this table; from each age module's
+`diplomacy-actions.xml` `InfCostNoRelationship`):**
+
+| Action | Antiquity | Exploration | Modern |
+|---|---:|---:|---:|
+| Befriend Independent (`DIPLOMACY_ACTION_GIVE_INFLUENCE_TOKEN`) | 80 | 160 | **240** |
+| Become Suzerain (`DIPLOMACY_ACTION_BECOME_SUZERAIN`) | 255 | 510 | **765** |
+
+One Modern suzerainty from a cold start ≈ **1,005 Influence**, rising with each held/active
+one (`COST_PROGRESSION_NUM_SUZERAIN_AND_CURRENTLY_BEFRIENDING`, Param 20/10). Modding lever
+with base precedent on these exact actions: `EFFECT_DIPLOMACY_ADJUST_DIPLOMATIC_ACTION_TYPE_
+EFFICIENCY` — Greek Xenia targets the Befriend action by `ActionType`; native Puppet Master
+pays 50% on `ActionGroupType=DIPLOMACY_ACTION_GROUP_PROJECT` (where Become Suzerain lives).
+Semantics = +% progress/efficiency (an effective discount), not a printed price cut.
+
 **Trade ranges** (per Age, Land / Naval): **10/30 · 15/45 · 20/60.** These also set how far
 a new settlement can be to **connect to your Trade Network** — a settlement founded out of
 range is **not connected** (no roads, no trade routes, **can't allocate Resources to/from

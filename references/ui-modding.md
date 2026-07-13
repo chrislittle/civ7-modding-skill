@@ -613,6 +613,30 @@ the intended way to brand modded cards; a *dedicated custom slot type* does the
 opposite (it fails to render at all — see the government screen only supports
 Tradition/Policy/Crisis slot columns).
 
+### Culture/tech TREE nodes (`tree-card-v2` in `screen-culture-tree`) — glow/highlight (⭐ 2026-07-13)
+Worked example: MA's per-node "boost earned" glow. Hard-won specifics that differ from policy cards:
+- **Node identity = the `type` attribute, and it is the NUMERIC node HASH, not the string.** Select
+  `tree-card-v2[type]`; resolve the string via `GameInfo.ProgressionTreeNodes.lookup(Number(type))
+  ?.ProgressionTreeNodeType` (filter e.g. `startsWith('NODE_MA_')`). `Game.ProgressionTrees.getNode
+  (pid, hash)` / `getNodeState` / `Players.get(pid).Culture.getNodeCost(hash)` accept the hash.
+- **⚠ On tree-card-v2, INJECTED CHILD ELEMENTS ARE DELETED on the next redraw** (unlike the policy-card
+  case above where appended children survive — the tree re-renders its card subtree aggressively). A
+  fill-over-the-card via an overlay `<div>` vanishes. **Only inline STYLE on the existing element
+  survives**, and only if you REAPPLY it every scan. So highlight with `el.style.setProperty(
+  'box-shadow', …, 'important')` (a glow: outer bloom + 1px edge + `inset` edge-tint hugs the rounded
+  card; `outline` draws a hard RECTANGLE ignoring border-radius — looks crude). Paint the visible bar
+  `.tree-card-hitbox` (the host/`.tree-card-bg` are `display:contents`/covered).
+- **Realm matters:** a standalone game-scope UIScript loads into the ROOT/bootstrap document and can't
+  reach the in-game tree screen; host the decorator in a UIScript group that runs in-game (proven: the
+  same group as a working in-game panel/dock). Drive it with a top-level `requestAnimationFrame`
+  poller (+ optional `Controls.decorate('screen-culture-tree')`), not lifecycle hooks.
+- **Reading modded state per node:** a modifier can write a player property (`EFFECT_PLAYER_PROPERTY`,
+  Key/Value/Operation=CHANGE) and the UI reads it back via `Players.get(pid).getProperty(Database.
+  makeHash(key))` — confirmed working (base UI only ever uses `GameTutorial.getProperty`, but the
+  player object exposes `getProperty` too). This is the clean way to surface "did my modded thing fire"
+  to the UI when node data has no field for it (e.g. Civ7 commingles boost + research progress with no
+  boost flag).
+
 ## Colors: leaders, player-color CSS, plot tinting, tree icons
 
 Four independent color levers, distilled from shipping color mods (Atlas / Matt's
