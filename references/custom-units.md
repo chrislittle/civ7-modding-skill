@@ -102,6 +102,13 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   Reuse any base blp (`unitflag_*` + `fi_unit_*_64`); no custom art needed. Pick a donor whose blps live in
   **base-standard** (Scout, Migrant, Settler, Merchant) so they exist in every Age — a `unitflag_prospector`
   ships only in age-modern and won't resolve in AQ/EX.
+- **✅ CUSTOM PNG icons also work (in-game verified 2026-07-12, MA Surveyor):** both rows accept an
+  `fs://game/<modId>/<path>.png` Path instead of a blp — build list, unit flag and panel icon all render it.
+  Requirements: `ImportFiles` the PNG **in BOTH `scope="game"` and `scope="shell"` `always` groups** (same
+  dual-scope rule as the icon XML), plus an extensionless twin copy of the file (Ireland-mod convention — the
+  engine references textures by bare ID in some contexts). Art style: white silhouette on transparency,
+  anti-aliased (supersample from 512px), ~64–128px. The unit-icon contexts are NOT among the `blp:`-prefix
+  drop spots that break custom-civ art (those are civ-specific: splash/chooser/age-cards/diplo/culture-nodes).
 - **Load the icon file in BOTH `scope="game"` AND `scope="shell"` action groups, `criteria="always"`.** The
   unit-flag manager reads icon-name definitions from the **shell** icon DB; a game-scope-only registration
   leaves in-game flags/portraits **black**. And per-Age (`criteria="age-*"`) icon groups **don't register
@@ -125,13 +132,22 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   </Row></VisualRemaps>
   ```
   This makes the unit render as the donor **on the map and in the build menu**.
-- **HARD LIMIT — the selected-unit panel PORTRAIT stays black even with a correct remap.** That square is a
-  **live 3D render of the unit's OWN art asset** (`unit-actions.js`: `WorldUI.requestPortrait(unitType, …)`
-  → `background-image: url("live:/UNIT_TYPE")`). A brand-new unit has no art asset, so the portrait renders
-  black regardless of icons or remaps — and `VisualRemaps` can't alias it (the whole game has only 3
-  founder-overlay remaps; there is **no unit→unit art alias** — every unique civ unit ships its own art).
-  Fixing the portrait would need art-layer asset modding or a fragile UI-JS override. The map + build-menu
-  look correct; only that one panel square is affected. Usually **accept it** as cosmetic.
+- **The selected-unit panel PORTRAIT stays black even with a correct remap** — that square is a
+  **live 3D render of the unit's OWN art asset** (`unit-actions.js` `setupUnitInfo()`:
+  `WorldUI.requestPortrait(unitType, unitType, bg)` → `background-image: url("live:/UNIT_TYPE")`). A
+  brand-new unit has no art asset, so it renders black regardless of icons or remaps — `VisualRemaps`
+  can't alias it (only 3 founder-overlay remaps exist game-wide; no unit→unit art alias).
+- **✅ THE FIX — a tiny `UIScripts` decorator (in-game verified 2026-07-12, MA Surveyor):** decorate the
+  panel and re-point the render at the donor. `Controls.decorate("unit-actions", (component) => …)` wraps
+  `component.setupUnitInfo` on the instance (the provider runs at component creation, before attach, and
+  must return an object with all four no-op lifecycle methods `beforeAttach/afterAttach/beforeDetach/afterDetach`);
+  after the base method runs, if `component.portraitImage.style.backgroundImage` contains your unit type,
+  call `WorldUI.requestPortrait("UNIT_<DONOR>", "UNIT_<DONOR>", "UnitPortraitsBG_BASE")` and set the style
+  to `url("live:/UNIT_<DONOR>")` — bit-for-bit the call path a real selected donor unit uses, so it renders
+  the donor's live 3D portrait. String-match the style (no `Units`/`GameInfo` lookups needed); try/catch
+  everything so the worst case is the base black square. Load the script via `<UIScripts>` in a game-scope
+  `always` group. Working example: metropolis-ascendant `ui/surveyor/mad-surveyor-portrait.js`. (The
+  army-panel has the same render pattern — extend the same patch there only if the unit can appear in armies.)
 
 ## Per-resource yield & tall gating (effect-side levers)
 

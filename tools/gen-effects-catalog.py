@@ -14,7 +14,18 @@ def find_civ7_root():
         if os.path.isdir(p): return p
     raise SystemExit("Civ VII install not found. Set CIV7_ROOT to the game folder (...\\Sid Meier's Civilization VII).")
 
+def find_buildid(root):
+    """Read the installed buildid from the Steam appmanifest next to the game folder."""
+    acf = os.path.normpath(os.path.join(root, "..", "..", "appmanifest_1295660.acf"))
+    try:
+        m = re.search(r'"buildid"\s*"(\d+)"', open(acf, encoding="utf-8", errors="replace").read())
+        if m: return m.group(1)
+    except OSError:
+        pass
+    return "unknown"
+
 ROOT = find_civ7_root()
+BUILDID = find_buildid(ROOT)
 OUTMD = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "references", "effects-collections-catalog.md"))
 files=[]
 for base in (os.path.join(ROOT,"Base","modules"), os.path.join(ROOT,"DLC")):
@@ -66,8 +77,8 @@ def w(s=""): L.append(s)
 w("# Civ VII GameEffects catalog — effects · collections · requirements · yields")
 w()
 w(f"> **Provenance.** Extracted **{now}** directly from the local installed game by scanning")
-w(f"> **{len(files)} `data/**/*.xml` files** across `Base\modules` (core, base-standard, age-antiquity,")
-w("> age-exploration, age-modern) **and every installed `DLC\` module**. Steam buildid **23245653**.")
+w(f"> **{len(files)} `data/**/*.xml` files** across `Base\\modules` (core, base-standard, age-antiquity,")
+w(f"> age-exploration, age-modern) **and every installed `DLC\\` module**. Steam buildid **{BUILDID}**.")
 w("> This is the authoritative, version-current, DLC-inclusive list for THIS install.")
 w(">")
 w("> **What this is:** every identifier *actually used* by shipped content — "
@@ -80,7 +91,7 @@ w(">")
 w("> **⚠️ Re-generate after every game patch / new DLC** — do NOT trust any external/older list, which")
 w("> silently goes stale. Method: re-run the extraction over the install (the generator is in the session")
 w("> that created this file; the core is a scan for `effect=`, `collection=`, `<Requirement type=`, and")
-w("> `<Argument name=>YieldType` over `Base\modules` + `DLC`).")
+w("> `<Argument name=>YieldType` over `Base\\modules` + `DLC`).")
 w()
 w("## Yields (real `YieldType` values)")
 w()

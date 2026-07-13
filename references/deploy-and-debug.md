@@ -38,6 +38,18 @@ Base of the user-data folder (`%LOCALAPPDATA%` = `C:\Users\<you>\AppData\Local`)
 3. Launch the game → **Add-Ons** menu → toggle the mod **Enabled**.
 4. **Start a NEW game.** Most gameplay actions bind at game start; enabling mid-game or
    loading an old save won't apply them.
+   ⚠ This extends to **updating** a mod: modifiers ADDED to an already-enabled mod after a
+   game was created NEVER attach to that game's saves (litmus-proven 2026-07-11,
+   gen2-featreq-litmus v1→v2): the `GameModifiers` → `EFFECT_ATTACH_MODIFIERS` bindings
+   execute at game CREATION only; loading a save re-applies the modifier state stored in
+   the save (the old modifiers keep working) but does not re-execute bindings for new
+   modifier ids — even after a full app restart with "Applied all components" in
+   Modding.log and a clean Database.log. Two consequences: (a) iterating on a litmus needs
+   a fresh game per content addition, and (b) a shipped mod UPDATE with new modifiers does
+   not affect players' in-progress games — new bonuses land on their next new game. Also
+   note: the game process scans mod files at APP LAUNCH; quitting to the main menu does
+   NOT re-read a redeployed modinfo — full exit + relaunch required to pick up a new
+   version at all.
 5. Verify it applied (next section) before concluding anything about your content.
 
 After any edit, repeat 2–5. Editing files in the deployed copy directly also works, but

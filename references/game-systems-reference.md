@@ -95,6 +95,24 @@ a yield mod should respect so its buildings feel native):
   (this is the post-1.4 specialist model — they are pure adjacency multipliers with no
   base yield; see also [gameeffects.md](gameeffects.md)).
 
+**⭐ THE PAIRING COROLLARY (Chris, 2026-07-13 — apply this whenever design touches "which
+buildings go together"):** two buildings on one tile share the same six neighbors, so
+buildings complement when their adjacency families MATCH — one great location then feeds
+both, and neither wastes the spot. The canonical foundational pairs, straight from the
+per-Age `Constructible_Adjacencies` tables:
+- **Waterfront pairs** (Coast/River family): AQ Market + Garden · EX Guildhall/Bazaar/Bank +
+  Tavern/Wharf · MO Port/Stock Exchange + Cannery/Tenement.
+- **Resource pairs**: AQ Library/Academy + Barracks/Blacksmith · EX Observatory/University +
+  Dungeon/Armorer · MO Schoolhouse/Laboratory + Factory/Military Academy.
+- **Beauty pairs** (Mountain/NW/Wonder family): AQ Monument/Amphitheater + Arena/Villa/Altar ·
+  EX Kiln/Pavilion + Temple/Menagerie · MO Museum/Opera House + **Department Store**/Radio
+  Station (⚠ the Department Store reads "commerce" but is a Happiness building → beauty-facing,
+  NOT waterfront).
+Cross-LANE but same-FAMILY pairs are what a good player actually co-sites — design content
+(deeds, feats, adjacency rewards) around those, never around thematic pairs from different
+families (a Guildhall+Kiln "pair" fights for different tiles). Wonders please every building,
+so wonder-adjacency is the universal sweetener.
+
 **Warehouse buildings** have **no adjacency**; instead they push a flat yield onto
 matching **Improvements** (e.g. Granary +1 Food on Farms/Pastures/Plantations; Brickyard
 +1 Production on Clay Pits/Mines/Quarries). They still count as Food/Production buildings
@@ -215,6 +233,18 @@ Culminates at 90%**, each phase opening more **Crisis Policy** slots.
 Crisis Policies and the choices they force are cards (see the catalog). The Age-pacing /
 victory / Triumph layer is separate — see
 [legacies-triumphs-dedications.md](legacies-triumphs-dedications.md).
+
+**⭐ WHAT SURVIVES THE AGE TRANSITION (assembled 2026-07-13 — check any Age-scoped design
+against this list; a condition pre-satisfied by carried state is not a real deed/feat):**
+- **PERSISTS:** buildings & districts (obsolete, adjacencies deactivate — many Quarters stop
+  being Quarters) · population incl. assigned Specialists (a tall AQ metropolis carries 3+
+  Specialists into EX — in-game confirmed) · slotted/unlocked **Traditions, with effects
+  stacking** (litmus-proven) · discovered Natural Wonders / map state · commanders (AGELESS).
+- **RESETS:** progression-tree unlock state & Triumph completion counts (litmus-proven) ·
+  **suzerainty / city-state relationships** (play-confirmed, Chris 2026-07-13) · trade routes
+  (re-established in the new Age) · **Great Works are EVICTED to the archive** (in-game
+  confirmed — re-displaying them is a real new-Age action) · celebrations/happiness stages
+  re-evaluate against new-Age thresholds.
 
 ---
 

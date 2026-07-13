@@ -84,8 +84,10 @@ Three separate causes — work through them in order:
    row; add it alongside the default-context flag row.
 3. **The big selected-unit PANEL portrait is still black** even with icons + a correct `VisualRemap` — that
    square is a **live 3D render of the unit's own art asset** (`live:/UNIT_TYPE`), which a brand-new unit
-   lacks; remaps can't alias it. Map + build-menu look fine; only that panel square is affected. Usually
-   accept it. → [custom-units.md](custom-units.md#icons-a-unit-needs-two-rows-in-both-scopes-from-an-always-group)
+   lacks; remaps can't alias it. Map + build-menu look fine; only that panel square is affected.
+   **✅ Fixable (verified 2026-07-12):** a `Controls.decorate("unit-actions", …)` UIScript that wraps
+   `setupUnitInfo()` and re-points the square at the donor's render (`live:/UNIT_<DONOR>`). Recipe in
+   → [custom-units.md](custom-units.md#3d-model--the-live-render-portrait-visualremap--its-hard-limit)
 
 Log note: `UI.log` records only **failed** resource loads — a *successful* icon load logs nothing, so
 "my blp was never requested" is NOT proof it didn't resolve. Don't diagnose from its absence.
@@ -149,6 +151,12 @@ before asserting one. Generate it via `python tools/gen-constructibles-catalog.p
    … In XMLSerializer while updating table VisualRemaps from file …`. `VisualRemaps` isn't a
    gameplay-DB table — it has its **own action**, `<UpdateVisualRemaps>`. Move the remap file out
    of the `UpdateDatabase` list into an `UpdateVisualRemaps` action (an `always` group).
+5. **`<EnglishText>` (or any LocalizedText table) inside an `<UpdateDatabase>` file.** Database.log:
+   `[gameplay] ERROR: no such table: EnglishText` and the game crashes at map load (hit again
+   2026-07-13). Text tables live in the TEXT database — load them via `<UpdateText>` (a separate
+   file), never in a gameplay `UpdateDatabase` item. Same "wrong action for the table" class as
+   the VisualRemaps crash above: each layer (gameplay DB / text / icons / visual remaps) has its
+   own action and its own database.
    → [custom-units.md](custom-units.md#3d-model--the-live-render-portrait-visualremap--its-hard-limit)
 5. **Diagnosis tip:** a runtime crash leaves `Modding.log` *clean* (often ending
    "Successfully reconfigured game") with the process dying after — distinct from a
