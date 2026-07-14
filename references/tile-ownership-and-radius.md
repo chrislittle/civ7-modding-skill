@@ -41,7 +41,7 @@ still names a different city of yours; picking it transfers ownership.
 
 ## 2. The "3-hex limit" is an EXPANSION cap, NOT a working cap (corrected 2026-06-30; ⚠ RE-CORRECTED 2026-07-03)
 
-> **2026-07-03 controlled FireTuner matrix (4 tiles, MA game) — the definitive model:**
+> **Controlled FireTuner matrix (4 tiles) — the definitive model:**
 > `city.Growth.claimPlot({x,y})` is the engine's **full expansion primitive**, not a bare
 > ownership flip. Each call: claims the tile + attaches it to the city as **Rural** +
 > **auto-places the terrain-appropriate improvement** (vegetated→Woodcutter,
@@ -75,7 +75,7 @@ imprecise. The truth:
 - **Consequence:** a Civ7 3→5 mod needs ONLY to *claim* ring-4/5 tiles for tall
   cities — **no yield injection, no dummy specialists** (unlike the Civ6 mod, whose
   *working* layer WAS radius-capped, section 4). Dramatically lighter than Civ6.
-- **SHIPPED as a data-only feature 2026-07-02 (Metropolis Ascendant "Surveyor"):** the
+- **SHIPPABLE as a data-only feature (a "Surveyor"-style claim unit):** the
   general claimPlot route needs a gameplay-script isolate mods can't reach, but the base
   Prospector **`UNITCOMMAND_CLAIM_RESOURCE`** claims a **resource** tile ≤5 hexes into your
   borders with pure data — port that ability chain onto a buildable civilian and you have a
@@ -250,7 +250,7 @@ So the gameplay isolate is reachable only by **FireTuner** (external debug tool)
 scripts** — neither is a shippable normal-game mod. **REALISTIC OPTIONS:** (a) SHELF until
 Firaxis exposes gameplay scripting (community expects it may come); (b) ship as a custom
 **SCENARIO** (ScenarioScripts works there) — but that's a load-a-scenario UX, not a normal
-Metropolis Ascendant game; (c) stay **data-only/intensity** (MA's existing model). The proven
+normal game; (c) stay **data-only/intensity** (the shipped model). The proven
 research (claimPlot ignores the radius + engine works ring-4/5 tiles) is preserved for if/when
 the gameplay isolate opens up or for scenario use.
 
@@ -280,18 +280,16 @@ native claim that works — the Prospector's resource claim — deployed for tal
   grants use it, `run-once`, node-gated). Charge supply: `EFFECT_GRANT_UNIT_ABILITY_CHARGE`
   (`COLLECTION_OWNER`, recharge timer).
 - **NO per-growth-event trigger exists** (verified — only one hardcoded yield-on-growth effect). Unit
-  grants are milestone/`run-once`/node-based → tie grants to **population milestones** (MA tiers), not
+  grants are milestone/`run-once`/node-based → tie grants to **population milestones**, not
   every growth. Building can't cost a literal pop (Migrant is `CanTrain="false"` + no "on unit trained"
   trigger to fire `EFFECT_CITY_ADJUST_POPULATION`); cost levers = production + `PrereqPopulation` + cooldown.
 - **Payoff:** amplify each claimed resource for the tall city via `EFFECT_CITY_ADJUST_YIELD_PER_RESOURCE`
   / `…_PER_SLOTTED_RESOURCE` / `…_PER_RESOURCE_CLASS` (the engine has a whole per-resource family).
 
 **Design (decided):** a DEDICATED tall-gated "Surveyor" unit (not tagging base Migrants), granted at
-population milestones, carrying the claim charge, + an MA per-resource amplifier. **Shipped
-implementation (public):** the Metropolis Ascendant mod
-(github.com/chrislittle/metropolis-ascendant) — see `data/antiquity/surveyor.xml` +
-`surveyor-bind.xml` for the complete AQ/EX ability-chain wiring (unit + UNIT_CLASS_PROSPECTOR tag +
-ABILITY_CLAIM_RESOURCE + charge-grant modifier), and the Modern variant for the tag-only form.
+population milestones, carrying the claim charge, + a per-resource amplifier. **Implementation
+shape:** the complete AQ/EX ability-chain wiring is a per-age effects file (unit + UNIT_CLASS_PROSPECTOR
+tag + ABILITY_CLAIM_RESOURCE + charge-grant modifier), with a Modern variant using the tag-only form.
 Minimal proof-of-concept is just ONE row: a TypeTags entry adding `UNIT_CLASS_PROSPECTOR` to any
 Modern-age unit surfaces the working Claim Resource command.
 

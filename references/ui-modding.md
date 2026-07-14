@@ -431,7 +431,26 @@ Frequently used, all confirmed in shipping mods:
   PlayerOperationTypes.GRANT_TREE_NODE, { ProgressionTreeNodeType: node.$index,
   FullyUnlock: 1 })` — the cheat-panel mods are a catalog of available operations.
 - **Text**: `Locale.compose("LOC_KEY", args...)`; text markup understood by UI
-  strings: `[icon:YIELD_GOLD]`, `[B]bold[/B]`, `[n]` newline.
+  strings: `[icon:YIELD_GOLD]`, `[B]bold[/B]`, `[n]` newline. **Parameterized LOC** uses
+  `{1_Name}` placeholders (the suffix after `_` is just a label; positional) — the LOC row
+  `"…up to {1_Max} this Age"` filled by `Locale.compose(key, maxValue)`. Pass an already-composed
+  string as the arg (not a raw LOC key) to avoid double-resolution.
+- **Progression / Triumphs / suzerain reads** (for read-only dashboards):
+  - **Tree-node unlocked depth**: `Game.ProgressionTrees.getNode(playerId, nodeHash).depthUnlocked`
+    (0 none / 1 base / 2 mastery). Look the node up in `GameInfo.ProgressionTreeNodes`; a node in a
+    *hidden* (not-yet-revealed) tree still exists in `GameInfo`, so this returns 0 cleanly pre-reveal.
+  - **Legacies / feats live**: `Players.get(pid).Legacies` component + `GameInfo.Legacies` (filter to
+    your `LEGACY_*` prefix, scope to `Game.age`). Each row gives `.Name`, `.Description`,
+    `.TriggerDescription`; check earned-state with the same helper the base Legacies UI uses. Lets a
+    panel show "how to unlock" text (the trigger) and live earned/locked state without hardcoding.
+  - **Suzerain city-states**: see [city-states-suzerain.md](city-states-suzerain.md#reading-suzerainties-from-a-ui-mod-js)
+    (`Influence.getSuzerain()` + `GameInfo.CityStateTypes.lookup`).
+- **Adding a switcher tab to an existing panel**: register the tab id in the panel's `TABS` list,
+  add an `<fxs-activatable class="…-tab-<id>">` button in the HTML, and tag each card/row with
+  `dataset.system = '<id>'`; the filter that shows `card.dataset.system == activeTab` does the rest.
+  A `flex-wrap` filter row absorbs the extra button. Synthetic "cards" (plain objects with
+  `{lane, system, nodeName, lines, unlockedDepth, requiredDepth}`) render through the same card
+  path as real ones — handy for a bespoke tab (e.g. a per-item "what / how to get / have it?" list).
 - **Events**: `engine.whenReady.then(fn)` (script start), `engine.on/off('EventName',
   fn, ctx)` and component-scoped `this.Root.listenForEngineEvent('EventName', fn,
   this)`. Real event names seen: `CityPopulationChanged`,
@@ -568,8 +587,8 @@ is what solved policy-card branding after many failed guesses.
 ## Asset path rule for icons & CSS `url()`
 
 Reference an imported mod asset as **`fs://game/<modId>/<path-in-mod>`** — NOT a bare
-filename. E.g. mod id `metropolis-ascendant`, file `ui/icons/mad-dock-icon.png` →
-`fs://game/metropolis-ascendant/ui/icons/mad-dock-icon.png`. This holds for
+filename. E.g. mod id `my-mod`, file `ui/icons/dock-icon.png` →
+`fs://game/my-mod/ui/icons/dock-icon.png`. This holds for
 `IconDefinitions` `<Path>`, CSS `background-image: url(...)`, `Controls.loadStyle`,
 and JS `import`. PNGs used as data icons must also be `ImportFiles`'d in the modinfo
 (dev-kit "Database Modding" doc). A bare `fs://game/logo.png` silently fails to load
@@ -614,7 +633,7 @@ opposite (it fails to render at all — see the government screen only supports
 Tradition/Policy/Crisis slot columns).
 
 ### Culture/tech TREE nodes (`tree-card-v2` in `screen-culture-tree`) — glow/highlight (⭐ 2026-07-13)
-Worked example: MA's per-node "boost earned" glow. Hard-won specifics that differ from policy cards:
+Worked example: a custom per-node "boost earned" glow. Hard-won specifics that differ from policy cards:
 - **Node identity = the `type` attribute, and it is the NUMERIC node HASH, not the string.** Select
   `tree-card-v2[type]`; resolve the string via `GameInfo.ProgressionTreeNodes.lookup(Number(type))
   ?.ProgressionTreeNodeType` (filter e.g. `startsWith('NODE_MA_')`). `Game.ProgressionTrees.getNode
@@ -663,26 +682,67 @@ and text (which the engine derives from the pair — see below) stay readable.
 ### 2. Player-color CSS variables (JS/CSS — tint your own panels)
 
 The engine exposes each player's colors as a small palette you can stamp onto any
-element. This is how to make an MA panel/badge match the active player's colors.
+element. This is how to make a mod panel/badge match the active player's colors.
 
 - **API:** `UI.Color.getPlayerColors(playerId)` → the raw pair;
-  `UI.Color.createPlayerColorVariants(pair)` derives `mainColor / textColor /
-  accentColor / moreColor / lessColor / tintColor` for primary & secondary plus an
-  `isPrimaryLighter` flag (text/accent are auto-blended toward white/black for
-  contrast — you don't compute contrast yourself).
-- **Stamp helper:** import from the game's `utilities-color` and call
-  `realizePlayerColors(element, playerId)` — it sets these CSS vars on the element:
-  `--player-color-primary`, `--player-color-primary-more/-less/-text/-accent`, and the
-  matching `--player-color-secondary-*`, and toggles class `primary-color-is-lighter`.
-  `realizeCivHeraldry(element, playerId)` does all that **plus** `--civ-pattern` and
-  `--civ-symbol` (the civ line/symbol icons, via
-  `Icon.getCivSymbolCSSFromCivilizationType`). `getPlayerColorValues(playerId)` returns
-  the same vars as an inline-`style` string.
-- **Then in CSS** just reference `var(--player-color-primary)` etc. To tint a game
-  **fxs border image** by player color use the engine CSS property
-  `fxs-border-image-tint: var(--player-color-primary);` (SIB's whole diplo-ribbon fix
-  is that one line, injected via a `<style>` appended to `document.head` + a body
-  class). Not a standard CSS prop — it's engine-specific.
+  `UI.Color.createPlayerColorVariants(pair)` derives, for `.primaryColor` and
+  `.secondaryColor` each, `{mainColor, moreColor, lessColor, textColor, accentColor,
+  tintColor}` plus a top-level `.isPrimaryLighter` flag (text/accent are auto-blended
+  toward white/black for contrast — you don't compute contrast yourself).
+- **Stamp helper — verified exports of `/core/ui/utilities/utilities-color.js`
+  (2026-07-14, read from the install):** the function is **`applyPlayerColorsToElement(element,
+  playerId)`** — NOT `realizePlayerColors` (that name does not exist here; guessing it
+  wasted two debug rounds). It sets, on `element`: `--player-color-primary`,
+  `--player-color-primary-more/-text/-accent` (note: **no `-less`**), the matching
+  `--player-color-secondary(+-more/-text/-accent)`, and toggles class
+  `primary-color-is-lighter`. The file also exports `getPlayerColorVariants(playerId)`
+  (returns the variants **object** above, cached — use it to read `mainColor`/
+  `isPrimaryLighter` yourself), `isPrimaryColorLighter(playerId)`, and the color
+  converters `HexToFloat4 / ObjectToRgbaString / RGBAToString / numberHexToStringRGB`.
+  (`UI.Player.get{Primary,Secondary}ColorValueAsString` — a plausible-looking direct
+  API — did **not** resolve in a custom `Panel` context; use the `UI.Color`/utilities
+  route.)
+- **⚠⚠ `color: var(--x)` IS IGNORED in this Coherent build (the big one — e.g. a custom dashboard,
+  2026-07-14, ~10 debug rounds).** A custom property set on an element *does* inherit to
+  descendants (confirmed: `getComputedStyle(child).getPropertyValue('--x')` returns the
+  parent's value), but a declaration like `.foo { color: var(--x) }` **does not use it** —
+  the color collapses to inherited/black, and setting the var to any value changes nothing.
+  So **CSS-variable theming for dynamic colors is a dead end here.** Symptom: your panel
+  renders all-gray/black (not even the `var(--x, fallback)` fallback shows, because the var
+  *is* defined — just ignored). Fix: **compute the color in JS and set it DIRECTLY as an
+  inline style on each element** (`el.style.color = 'rgb(...)'`, `el.style.backgroundColor`,
+  `el.style.borderColor`) after every render pass and on tab-switch. Inline styles are the
+  only thing that reliably paints. Keep the CSS with hardcoded sane defaults so the base
+  state is never gray; JS overrides on top.
+- **⚠ `fxs-*` custom elements render their text/chrome INTERNALLY**, so host CSS `color`/
+  `box-shadow` never reaches the painted pixels: `fxs-header` paints its own (gold) title
+  text — you cannot recolor it from outside; `fxs-subsystem-frame`'s ornate frame is a
+  **background image** (`blp:hud_sidepanel_bg` + filigree PNGs), NOT a border-image, so an
+  inset `box-shadow` hides behind it and `fxs-border-image-tint` on the frame **washes the
+  whole panel** (wrong lever). `fxs-border-image-tint` only tints an element that itself
+  carries a `border-image-source` (`blp:`) — the base game makes a dedicated element for it
+  (`.city-banner__stretch-bg`, `.diplo-ribbon__front-banner`). Recolor only the **plain
+  `<div>`/`<span>`** you create in JS; leave the fxs chrome alone.
+- **Legibility on a dark panel — use the engine's own `accentColor`, don't roll your own.**
+  A civ's raw `primaryColor` is often dark (navy/purple/brown) and unreadable on a dark
+  panel. Custom normalization is a rabbit hole (HSL-lightness ≠ perceived luminance → green
+  reads bright, blue dark at the same L; brown is *dark orange* so any lift turns it orange;
+  near-white civs desaturate to gray). The clean answer: **`createPlayerColorVariants(pair)
+  .primaryColor.accentColor`** is the engine's pre-derived contrast-safe form (e.g. raw
+  purple `rgba(55,0,101)` → accent `rgba(84,98,153)`) — muted, matches Civ7's restrained
+  palette, legible on dark, and it's per-leader/persona exact (dual leaders like Friedrich
+  each resolve correctly, no table to maintain). Parse its `r,g,b` and build your own
+  `rgb()`/`rgba()` strings (the variant strings carry alpha `255` in 0–255 form). This was
+  a pragmatic choice after rejecting custom normalization as a "mixed bag."
+- **Where the data lives:** per-leader colors are `base-standard/data/colors/playercolors.xml`
+  — a `Colors` block (named defs → `"R,G,B,A"`) and a `PlayerColors` block mapping each
+  `LEADER_*` (and generic `PLAYERCOLOR_*` slots) to a `PrimaryColor`/`SecondaryColor`. You
+  rarely need it though — `getPlayerColors(pid)` resolves the exact active color at runtime.
+- **The `--player-color-*` route still works for plain elements** where you *can* use CSS:
+  `applyPlayerColorsToElement(element, playerId)` sets `--player-color-primary(+-more/-text/
+  -accent)` etc., and `fxs-border-image-tint: var(--player-color-primary)` tints a real
+  border-image element (SIB's diplo-ribbon fix). But per the `color: var()` law above, don't
+  rely on it for `color`; prefer direct inline styling for anything dynamic.
 
 ### 3. Tinting plots from a lens layer (`WorldUI` plot overlays)
 
@@ -726,7 +786,7 @@ swap in your own art:
    `scope="shell"` and a `scope="game"` ActionGroup** (icons show in shell menus and
    in-game trees; miss one scope and half your icons revert).
 
-This is the clean way to give MA's custom tech/culture-tree fan-out bonuses legible,
+This is the clean way to give a custom tech/culture-tree mod's fan-out bonuses legible,
 color-coded icons instead of inheriting a generic base icon.
 
 ### 5. Custom-civ art & the "Art Fixes" compat shim

@@ -1,7 +1,7 @@
 # Razing, capture rewards & conquest hooks
 
-Everything here was verified against installed 1.4.1 + DLC data **and** in-game testing (Metropolis Ascendant
-issue #3, 2026-07-02). Read before building any "reward for taking/razing a city" or "make razing viable" feature.
+Everything here was verified against installed 1.4.1 + DLC data **and** in-game testing.
+Read before building any "reward for taking/razing a city" or "make razing viable" feature.
 
 > **Live create/destroy primitive (UI-isolate RPC):** for a scripted "demolish this district"
 > or "rebuild this tile" mechanic outside the native raze timeline, a mod `<UIScripts>` file can

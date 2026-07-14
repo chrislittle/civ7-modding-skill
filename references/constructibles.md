@@ -17,8 +17,8 @@ governed by the **`AGELESS` tag** and the **`Age` column**. These rules were ver
 - ⚠ **The default game forbids overbuilding an `AGELESS` building** (and forbids overbuilding/placing a
   **WONDER** on an occupied tile). A **mod** can still reclaim such a tile with the scripted
   **`EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE`** (Destroy+Create) — that is "special mod work," not a normal
-  action. The Metropolis Ascendant 'Foundations' recycle uses it to place a victory WONDER on a tile normal
-  play won't free (its in-game test even landed over an `AGELESS` Sawmill — which a normal overbuild can't do).
+  action. A recycle / overbuild feature can use it to place a victory WONDER on a tile normal
+  play won't free (an in-game test even landed one over an `AGELESS` Sawmill — which a normal overbuild can't do).
   See [gameeffects.md](gameeffects.md).
 
 ## Obsolescence is engine-computed (no per-building flag)

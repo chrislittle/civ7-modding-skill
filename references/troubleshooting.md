@@ -179,10 +179,33 @@ gate silently never pass, with no error from the generator or the XML validator.
 3. **Don't trust `Select-String -SimpleMatch | %{ $_.Matches.Count }`** to verify counts — under
    `-SimpleMatch` the `.Matches` collection isn't populated and it falsely returns 0. Use
    `(Select-String -Pattern … -SimpleMatch).Count` (matching-line count) instead.
+4. **Audit the GENERATED output, never the source, to know what actually ships.** A generator
+   full of conditional guards (`if (-not $Strip) { $out += … }`, block-wrapped emits) is a trap:
+   a `grep` of the *source* shows emit lines that are actually suppressed, and misses ones a
+   guard on an enclosing line kills. Grep the emitted `.xml` for real `<Modifier id="…">` / `<Row>`
+   lines instead — that's ground truth. (Cost me a wrong "this is live" conclusion during a de-layer.)
 
 The habit: **regenerate → grep the output for both presence (expected ids/nodes) and absence
 (empty args) → only then deploy.** A green XML-validator and a non-erroring generator are
 necessary, not sufficient.
+
+## Symptom: I removed a bonus but its old text still shows on a node — or a yield's breakdown label broke
+
+Two failure modes when retiring/de-layering a modifier that had a node "note":
+
+1. **Orphaned display row.** MA-style node notes are `ProgressionTreeNodeUnlocks` rows
+   (`TargetKind="KIND_MODIFIER"` → a lightweight display-only "note" modifier that just carries
+   the LOC text). If you strip the *bonus* modifier but leave its note's display row, the base
+   node keeps **advertising a bonus that no longer exists.** When you retire a modifier, also
+   suppress its note row (and the note-modifier). Audit: for every note key, confirm a live bonus
+   still backs it; grep the generated `traditions.xml` for stale `TargetType="…_NOTE_…"` rows.
+2. **Dual-role note key = broken attribution label.** The *same* generated note LOC key is often
+   reused as an always-on modifier's `<Argument name="Tooltip">` — that Tooltip is the city
+   yield-breakdown attribution ("+2 Science from *Suzerainty*" instead of "Other"). If you strip
+   the note (deleting the LOC string), any modifier still pointing its Tooltip at it now shows a
+   **dangling/blank label** in the breakdown. Fix: give always-on modifiers a **standalone,
+   hand-authored attribution LOC** (e.g. `LOC_MA_SUZERAIN_LABEL` = "Suzerainty"), never a generated
+   tree-display note key. Decouple the breakdown label from the tree note from the start.
 
 ## Symptom: some of my rows are missing / FK errors
 

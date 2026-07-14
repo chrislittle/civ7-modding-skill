@@ -139,7 +139,7 @@ Modern paths accrue path points to hit 3 milestones (which grant Legacy Points +
 
 ## 3. CONSOLIDATED "REQUIRED-MECHANICS — never an accomplishment" list
 
-Gate any MA design idea against this. If your mod's "special reward" is on this list, you are taxing/gating a mechanic the base game **forces** a path-follower to perform.
+Gate any design idea against this. If your mod's "special reward" is on this list, you are taxing/gating a mechanic the base game **forces** a path-follower to perform.
 
 | # | Required mechanic (price of entry) | Path(s) that FORCE it | Source |
 |---|---|---|---|

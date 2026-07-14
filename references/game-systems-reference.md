@@ -30,7 +30,7 @@ The most MA-relevant section. Pairs with
 [yield-and-balance-design.md](yield-and-balance-design.md) (the design *language*) — this
 is the underlying *arithmetic*.
 
-**Settlement Limit** (the soft cap; MA's whole premise fights this):
+**Settlement Limit** (the soft cap; the thing a tall / one-city mod fights):
 - Base limit **3 / 8 / 16** for Antiquity / Exploration / Modern.
 - **Over the limit → −5 Happiness in *every* settlement.** Unhappiness then bites yields:
   **−5% yields per point of Unhappiness, capped at −80%.** This is the mechanism that
@@ -85,7 +85,7 @@ route here; some city-state bonuses give the Capital +1 pop. The **first Rail St
 **Adjacency by building yield-type** (data-backed via Adjacency tables — this is the map
 a yield mod should respect so its buildings feel native):
 - **Culture & Happiness** buildings ← **Mountains, Natural Wonders** (*a NW that is also a
-  Mountain counts double*). This is why MA's Arcadia mountain/NW work fits here — see
+  Mountain counts double*). This is why appeal / mountain / natural-wonder yield bonuses fit here — see
   [gameeffects.md](gameeffects.md) Appeal/adjacency section.
 - **Science & Production** buildings ← **Resources**.
 - **Gold & Food** buildings ← **Navigable Rivers, Lakes, Coast** (**not Ocean**).
@@ -95,7 +95,7 @@ a yield mod should respect so its buildings feel native):
   (this is the post-1.4 specialist model — they are pure adjacency multipliers with no
   base yield; see also [gameeffects.md](gameeffects.md)).
 
-**⭐ THE PAIRING COROLLARY (Chris, 2026-07-13 — apply this whenever design touches "which
+**⭐ THE PAIRING COROLLARY (apply this whenever design touches "which
 buildings go together"):** two buildings on one tile share the same six neighbors, so
 buildings complement when their adjacency families MATCH — one great location then feeds
 both, and neither wastes the spot. The canonical foundational pairs, straight from the
@@ -257,7 +257,7 @@ against this list; a condition pre-satisfied by carried state is not a real deed
   Specialists into EX — in-game confirmed) · slotted/unlocked **Traditions, with effects
   stacking** (litmus-proven) · discovered Natural Wonders / map state · commanders (AGELESS).
 - **RESETS:** progression-tree unlock state & Triumph completion counts (litmus-proven) ·
-  **suzerainty / city-state relationships** (play-confirmed, Chris 2026-07-13) · trade routes
+  **suzerainty / city-state relationships** (play-confirmed) · trade routes
   (re-established in the new Age) · **Great Works are EVICTED to the archive** (in-game
   confirmed — re-displaying them is a real new-Age action) · celebrations/happiness stages
   re-evaluate against new-Age thresholds.

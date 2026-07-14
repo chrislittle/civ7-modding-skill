@@ -99,14 +99,37 @@ Note the base-game **misspelling `POLPULATION`** in the free-pop effect — copy
     existing base LOC tag, not just city-states: `<Replace>` = full replace; include the original if you want
     to keep it. (Learned 2026-06-22 — an override clobbered the "Papermaking" description.)
 
-## ⚠️ Unverified-in-game (confirm before trusting)
-These are derived from static data and base-game patterns but were **not yet runtime-verified** when this
-reference was written:
-- Whether `REQUIREMENT_PLAYER_ELIGIBLE_CS_BONUS` flips true on **drafting** the option (assumed yes).
-- Whether these effects deliver correctly through a **`COLLECTION_MAJOR_PLAYERS` + `EFFECT_ATTACH_MODIFIERS`
-  attach wrapper** without the base game's own eligibility scaffolding.
-- Whether an `<EnglishText>` row actually **overrides** the base menu description (vs needing the
-  `<Replace>` form used in non-English l10n files).
+## Gate on holding the suzerainty, NOT on the bonus pick (runtime-proven 2026-07)
+Two ways to gate a "reward per suzerained city-state" effect:
+- ❌ `REQUIREMENT_PLAYER_ELIGIBLE_CS_BONUS` (keyed to drafting that type's Shareable bonus,
+  `CITY_STATE_<TYPE>_BONUS_<AGE>_7`). It *works*, but it **forces the player to pick the Shareable bonus
+  every time** — which fights any other system that wants them to draft a *different* CS bonus (e.g. an
+  improvement-picking feat). It also only flips true at the draft moment.
+- ✅ `REQUIREMENT_PLAYER_HAS_X_TRIBUTARIES_OF_TYPE` (`<Argument name="CityStateType">SCIENTIFIC</Argument>`,
+  `Amount=1`). Keys off simply **holding** suzerainty of that type, regardless of which bonus you drafted.
+  Base-verified (Conqueror-set usage), reads continuously. **This is the clean default.** Per-yield-type:
+  one modifier per type (SCIENTIFIC/CULTURAL/MILITARISTIC/ECONOMIC/EXPANSIONIST → its yield). DIPLOMATIC has
+  no yield of its own → use `EFFECT_PLAYER_ADJUST_YIELD_PER_SUZERAIN` (Influence per total suzerain) gated on
+  a DIPLOMATIC tributary.
+- **If you decouple, DELETE the menu-DESCRIPTION override.** Once the reward no longer depends on which bonus
+  you pick, annotating one option (`..._7_DESCRIPTION`) *misleads* — the base descriptions should stay vanilla
+  and the explanation moves to a tree note or the dashboard. (A stale override + a decoupled gate is a common
+  drift after a redesign; grep the generated text for `CITY_STATE_.*_BONUS.*_DESCRIPTION` to confirm it's gone.)
 
-When you build a suzerain feature, treat these as the first three things to check in-game (yield moves,
-menu text shows, effect fires).
+## Reading suzerainties from a UI mod (JS)
+`Influence.getSuzerain()` on each player returns the suzerain's playerId (majors return -1). Group by type via
+`GameInfo.CityStateTypes.lookup(player.getCityStateCityStateType())` → `.Name` (localized) + `.CityStateType`
+(enum, match against `SCIENTIFIC`/… with `.includes()` to map to a yield icon):
+```js
+for (const p of Players.getAlive()) {
+    if (p?.Influence?.getSuzerain?.() != myId) continue;
+    const row = GameInfo.CityStateTypes.lookup(p.getCityStateCityStateType());
+    // row.Name = display, row.CityStateType = enum -> map to yield
+}
+```
+
+## Resolved (was "unverified")
+- The `COLLECTION_MAJOR_PLAYERS` + `EFFECT_ATTACH_MODIFIERS` attach wrapper delivers these fine without base
+  eligibility scaffolding — proven in a shipping mod.
+- Overriding the base menu description needs the **`<LocalizedText><Replace Tag=... Language="en_US">`** upsert
+  (see above), **not** `<EnglishText><Row>` (which duplicates the base tag → load error → crash).

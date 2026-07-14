@@ -103,19 +103,18 @@ scatter (avg spacing 5), skips owned plots and anything closer than
 **rings 3–6 of the capital** — the ring-4/5 band. No effect spawns them later (only
 `EFFECT_PLOT_DESTROY_DISCOVERY` exists); Exploration age seeds its own fresh batch.
 
-## The ring-4/5 chain (Metropolis Ascendant phase-2 design — 🗄️ LANE SHELVED 2026-07-03, engine-blocked)
+## The ring-4/5 chain (a shelved, engine-blocked example)
 
-> **Status:** the MA feature built on this was SHELVED (GitHub metropolis-ascendant#13,
-> `blocked`): runtime-story seeds are claim-invisible (see the delivery-dependence block below),
-> and the claimable alternative (discovery sites) is map-random — unusable under MA's
-> 1-settlement-per-hemisphere footprint. Everything below remains VALID ENGINE REFERENCE for
-> other mods/uses; just don't read it as an active MA plan.
+> **Status:** a feature built on this was SHELVED (`blocked`): runtime-story seeds are
+> claim-invisible (see the delivery-dependence block below), and the claimable alternative
+> (discovery sites) is map-random — unusable under a strict 1-settlement footprint. Everything
+> below remains VALID ENGINE REFERENCE for other mods/uses; just don't read it as an active plan.
 
 Custom tall-gated **discovery-investigation** story per age: A-story in the INVESTIGATION queues with
-`ActivationRequirementSetId` = tall gate (settlement count / MA tech-node MinDepth), `ResourceReq` +
+`ActivationRequirementSetId` = tall gate (settlement count / tech-node MinDepth), `ResourceReq` +
 D-step `COLLECTION_NARRATIVE_STORY` + `EFFECT_PLOT_PLACE_RESOURCE` (clone the DISCOVERY_21002 wine
-chain) → resource appears ON the investigated site (unowned, rings 3–6) → the shipped Surveyor claims
-it (self-improves, MA per-resource amplifiers apply). Repeatability: drop `FirstOnly`, set
+chain) → resource appears ON the investigated site (unowned, rings 3–6) → a claim unit (a Surveyor-style
+Prospector) claims it (self-improves, per-resource amplifiers apply). Repeatability: drop `FirstOnly`, set
 `AllowDuplicates="TRUE"` (semantics across multiple sites untested — litmus first).
 
 **✅ VERIFIED IN-GAME 2026-07-03 (litmus mod story-seed-test v5/v6):**

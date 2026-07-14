@@ -436,7 +436,7 @@ To deliver many bonuses, list them comma-separated in one wrapper:
 
 Then **bind only the wrapper** (`MY_ATTACH_ALL`). Each attached modifier resolves its
 own collection against each player and self-gates with its own requirements (project
-completed, population tier, etc.). The Tall Metropolis mod uses exactly this: one
+completed, population tier, etc.). A tall / one-city mod can use exactly this: one
 `TM_<age>_ATTACH_ALL` wrapper listing ~13 bonus modifiers per Age, bound alone.
 
 ## Binding a Modifier to a player
@@ -449,7 +449,7 @@ should *always* be delivered through the wrapper; you then choose how they unloc
    always-on via `<GameModifiers>` and put a
    `REQUIREMENT_PLAYER_HAS_COMPLETED_PROGRESSION_TREE_NODE` (`MinDepth=1`!) in each
    bonus's `OwnerRequirements`. The bonus turns on automatically when the node is
-   researched. This is the Tall Metropolis approach. See
+   researched. This is a common tall-mod approach. See
    [projects.md](projects.md#gating-on-a-tech-node-without-a-project).
 
 2. **Tradition** — a data-XML `<Traditions>` row, linked to a Modifier via

@@ -105,9 +105,9 @@ A bonus that looks balanced *in isolation* can break because the **base game alr
 amplifiers on the same axis**, and they stack **additively on the same (tall) capital**. Section 3 warns
 that N cities = N× output; this is the dual warning for a single dense city: your `+X per <thing>` lands
 *on top of* the native `+Y per <thing>`, so the effective rate is `X+Y`, not `X`. The base-game
-per-mementos anti-dup list lives in `mementos-catalog.md`; the **non-memento** amplifiers below were the
-blind spot (uncatalogued until an MA combo audit surfaced them). **Before adding a mod bonus on any of
-these axes, check what already pays into it and size against the sum.**
+per-mementos anti-dup list lives in `mementos-catalog.md`; the **non-memento** amplifiers below are the
+easy-to-miss blind spot (uncatalogued elsewhere). **Before adding a mod bonus on any of these axes, check
+what already pays into it and size against the sum.**
 
 - **≤3-cities attribute DOUBLERS [DATA] — the native tall lane.** Several Attribute-tree tier-7/6 nodes
   *double* their effect when the player has ≤3 cities (implemented as a second modifier gated
@@ -140,7 +140,7 @@ is necessary but not sufficient — the native stack persists and is *intended* 
 ## Related
 
 - Age-scaling vs static effects: don't per-Age-node-gate static-world effects (they'd blink off at Age
-  rollovers) — see the mod's own design notes; yields are fine to re-scale per Age (section 2).
+  rollovers) — gate them binary/always-on instead; yields are fine to re-scale per Age (section 2).
 - Effect argument names are unguessable — confirm against `effects-collections-catalog.md` and a
   base-game example before building (per the skill's core workflow).
 - Full per-axis amplifier rosters (which leader/civ/memento/belief pays into each of 12 stacking axes)

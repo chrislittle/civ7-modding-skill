@@ -134,7 +134,7 @@ project and no slottable tradition**:
 > forever. Every base-game use of this requirement includes `MinDepth`. (This is silent
 > killer #6 in the main SKILL.) The requirement works in `OwnerRequirements`.
 
-This is what the Tall Metropolis mod uses now. **Project vs tech-node gate, when to pick
+This is a common tall-mod unlock shape. **Project vs tech-node gate, when to pick
 which:**
 
 | | Project | Tech-node gate |
@@ -206,7 +206,7 @@ is just a convenient proven no-op — any harmless effect plus a Description Str
 
 ## Worked pattern
 
-The Tall Metropolis mod's current unlock shape (tech-node gate, no project):
+A typical tall-mod unlock shape (tech-node gate, no project):
 
 1. Research the host tech (Antiquity `NODE_TECH_AQ_CURRENCY`, Exploration
    `NODE_TECH_EX_EDUCATION`, Modern `NODE_TECH_MO_ELECTRICITY`).
@@ -218,9 +218,34 @@ The Tall Metropolis mod's current unlock shape (tech-node gate, no project):
    is big enough. The safety nets omit the tech gate so they cushion the Age-transition
    window.
 
-> Historical note: earlier versions delivered the same bonuses via a slottable Tradition,
-> then via a one-time `PROJECT_DEDICATE_METROPOLIS_*` City project (built once to set a
+> Historical note: an alternative delivery is a one-time City project (built once to set a
 > `REQUIREMENT_PLAYER_HAS_COMPLETED_PROJECT` flag, with a +1-attribute completion reward
-> copied from `PROJECT_INVENT_CALCULUS`). Both were retired in favour of the simpler
-> tech-node gate above — but that project chain is still a valid pattern if you *want* a
-> buildable opt-in.
+> copied from `PROJECT_INVENT_CALCULUS`) — a valid pattern if you want a *buildable* opt-in
+> instead of a tech-node gate.
+
+## Town specialization projects (the base-game reference)
+
+A **Town** (not a City) with pop ≥7 builds ONE specialization project
+(`ExclusiveSpecialization="true" TownOnly="true" PrereqPopulation="7"`), which attaches a modifier
+bundle. Two delivery patterns inside the bundle: **"Warehouse"** — `EFFECT_CITY_GRANT_WAREHOUSE_YIELD`
+(boosts the town's own worked tiles), and **"…IN_CITY"** — effects that route to connected Cities.
+
+⚠️ **The data id and the in-game focus name differ** — don't label a bucket by its raw id in
+player-facing text:
+
+| Data id | In-game focus name | Core effect |
+|---|---|---|
+| `PROJECT_TOWN_GRANARY` / `_FISHING` | Farming / Fishing Town | +Food on tiles (warehouse) |
+| `PROJECT_TOWN_PRODUCTION` | Mining Town | +Production on tiles (warehouse) |
+| `PROJECT_TOWN_TRADE` | Trading Outpost | +5/+5 trade-route range + resource-happiness |
+| `PROJECT_TOWN_TEMPLE` | Religious Site | +2 Relic/GW slots on Temples, +2 happiness/bldg, −25% temple cost |
+| `PROJECT_TOWN_INN` | Hub Town | +1 Influence per connected settlement |
+| `PROJECT_TOWN_FACTORY` (MO) | Factory Town | +1 resource cap, +5/+5 range, build discounts |
+| `PROJECT_TOWN_FORT` | Fort Town | +25 district HP, +5 unit healing, +1 gold on fortifications |
+| `PROJECT_TOWN_URBAN_CENTER` | Urban Center | +1 Science & +1 Culture per Quarter |
+| `PROJECT_TOWN_RESORT` | Resort Town | +1 happiness/gold on appeal tiles, +50% Natural-Wonder tile yields |
+
+Base data: `base-standard/data/projects*.xml` (Fort / Urban Center / Resort) +
+`age-{antiquity,exploration,modern}/data/projects*.xml` (the rest). Note Hub Town's base effect
+`EFFECT_CITY_ADJUST_YIELD_PER_CONNECTED_CITY` pays **0 for a single-settlement player** — influence
+can't be delivered as a per-pop/per-city yield (see [city-states-suzerain.md](city-states-suzerain.md)).

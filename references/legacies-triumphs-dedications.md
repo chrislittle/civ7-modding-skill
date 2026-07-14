@@ -92,3 +92,54 @@ Triumphs screen; an inserted AdvancedStartCard is gated by its Unlock. Both are 
 - Branding modded cards with a logo/color needs a **UI decorator + CSS override** (native
   `TraitType`-driven art doesn't work for modded non-civ cards — engine forces
   `TRAIT_RANDOM`). See `ui-modding.md` → "Branding / restyling base cards".
+
+## Designing a GOOD Triumph / earn-trigger (not filler)
+
+When you gate a reward on "the player did X" — a Triumph, a narrative deed, a card unlock, a quest —
+the *quality* of X decides whether it's fun or filler. Framework distilled from mining both games' data
+(Civ 6's ~142 Historic Moments + Civ 7's 180 native Triumphs and the requirement vocabulary).
+
+**Benchmark:** Civ 7's 180 native Triumphs are **~92% "count to N" / "first to N of X"** — one verb
+(*accumulate*) with a number, no context or combination. Civ 6's Historic Moments were roughly half
+situational and rewarded *planning*. **Design toward Civ 6's texture; avoid the count-to-N default —
+it's native's turf and it's mindless (and duplicating it wastes your feat budget).**
+
+**7 archetypes of a good accomplishment** (each rewards a decision, not a next-turn click):
+
+| # | Archetype | Design intent | Civ 6 echo | Civ 7 requirement tools |
+|---|---|---|---|---|
+| **A** | Spatial optimization | Arrange your layout for a payoff you plan turns ahead | `DISTRICT_CONSTRUCTED_HIGH_ADJACENCY_*` | `BUILDING_IS_ADJACENT_TO_X` (BuildingCount, Adjacent{Building,Terrain,Feature,Resource,Quarter}Types) |
+| **B** | Adversity → asset | Turn a liability into value (flourish on harsh terrain) | `CITY_BUILT_NEAR_VOLCANO`, `IMPROVEMENT_CONSTRUCTED_ON_DISASTER_YIELD_TILE` | `PLOT_HAS_APPEAL`, `PLOT_BIOME_TYPE_MATCHES`, terrain/mountain reqs |
+| **C** | Placement context | Build relative to a *rare* map feature — scouting + siting | `CITY_BUILT_NEAR_NATURAL_WONDER`, `FIND_NATURAL_WONDER` | `PLOT_ADJACENT_FEATURE_TYPE_MATCHES` (natural wonder), coast/river, `PLAYER_IMPROVED_X_NATURAL_WONDERS` |
+| **D** | Deep investment | Max ONE asset instead of spreading | `GOVERNOR_FULLY_PROMOTED`, `BUILDING_CONSTRUCTED_FULL_*` | `COMMANDER_HAS_MAXED_DISCIPLINE`, fill Great-Work / resource slots to cap, complete a Quarter |
+| **E** | Setup chain / network | A multi-step sequence you build toward | `RAILROAD_CONNECTS_TWO_CITIES`, `PLAYER_MET_ALL_MAJORS` | trade-route reqs, distant-lands connection, compound RequirementSets (TEST_ALL) |
+| **F** | Timing window | Do X *during* a window (war, an age moment) | `CITY_CHANGED_RELIGION_ENEMY_CITY_DURING_WAR` | `PLAYER_HAS_X_WARS`, `PLAYER_IS_IN_GOLDEN_AGE` (⚠ see anti-patterns) |
+| **G** | Sacrifice / tradeoff | Give up one axis to spike another | Civ 6 tradeoff policy cards | two effects, one negative (`ADJUST_YIELD_PER_POPULATION` negative Amount) |
+
+**Anti-patterns — do NOT gate on these:**
+- ❌ **Count-to-N** ("have 12 codices") — mindless; native owns it.
+- ❌ **Opaque relative** ("lead in Science") — the player can't see progress, and can't know it at all
+  vs unmet leaders. Only viable with dedicated dashboard tracking.
+- ❌ **Happens naturally** ("all buildings current-Age") — you get it by playing normally.
+- ❌ **The default optimal line** — subtler: it *does* require planning (passes the tests on paper) but
+  it's exactly what a competent player already does. A good trigger sits **above the default line**: an
+  extra constraint the default doesn't include, a bar past the natural ceiling, an off-meta site/axis, or
+  a sacrifice. Litmus: *"would a strong player do this even with no reward attached?"* If yes, it isn't an
+  accomplishment.
+- ❌ **Happiness-STAGE gates** — civ-dependent (needs amenity civs) and Firaxis is mid-retuning happiness;
+  fragile. A *sustained* top-stage condition can work, but stage *ladders* are brittle — calibrate carefully.
+- ❌ **Celebration / Golden-Age *timing* triggers** — a well-played empire Celebrates regularly, so "do X
+  while Celebrating" is a wait-a-few-turns tax, not a decision. (Happiness-STATE yield *scaling* — "while
+  Joyous: +N" — is fine; that's a reward modifier, not a trigger.)
+- ❌ **Pure map-luck** ("discover a Natural Wonder") — fine as a *bonus*, not as a required gate.
+
+**Five design tests** (run every candidate through them): **(1) Planning** — does earning it make the
+player arrange things turns ahead, or just wait? **(2) Visibility** — can they see progress without hidden
+math or unmet-player data? **(3) Not-mindless** — could it be reached by mashing next-turn? **(4) Flexible**
+— is there more than one path/site/order? **(5) Above the default line** — would a strong player do it with
+no reward attached? If yes, add a constraint / raise the bar / move it off-meta / attach a sacrifice.
+
+**Budget note:** a yield lane has only ~2–4 buildings per Age and a tile holds 2 buildings, so you *can't*
+mint many distinct lane-specific accomplishments from building COUNT. **Decouple the trigger from the
+reward's lane** — the trigger is any good accomplishment (above); the card it unlocks carries the lane
+flavor. Lock the *archetype + condition*; tune the *threshold* in playtest.

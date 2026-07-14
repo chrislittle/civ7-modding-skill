@@ -150,12 +150,12 @@ conservative miss). This is the fundamental trade-off of the whole approach — 
 - **Cost:** all static tables are cached once; a placement preview is one plot-details build
   + a 6-neighbor sweep, cheap enough for hover.
 
-## Reusing this in MA (or any planner)
+## Reusing this (in a dashboard or planner)
 
 The reusable spine is Step B/C — **"is modifier M active for the local player, derived from
 data + live ownership"** — which is useful well beyond yield previews (e.g. the Bonus
-Dashboard deciding whether an MA bonus is live without waiting for it to fire). If you only
-need MA's own bonuses, you can shortcut: MA knows its modifier ids, so you can check their
+dashboard deciding whether a mod bonus is live without waiting for it to fire). If you only
+need your own mod's bonuses, you can shortcut: your mod knows its modifier ids, so you can check their
 specific sources (tree node unlocked via `Game.ProgressionTrees.getNodeState`, tall gate via
 your own settlement count) directly, instead of scanning all of `GameInfo.DynamicModifiers`.
 The full scan matters only when you must preview *arbitrary* (including other mods'/base)

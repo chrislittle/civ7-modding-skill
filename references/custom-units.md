@@ -1,6 +1,6 @@
 # Custom units: abilities, charges, granting, icons, visuals, AI
 
-Everything here was learned building the Metropolis Ascendant "Surveyor" (a buildable civilian that
+Everything here was learned building a custom "Surveyor"-style unit (a buildable civilian that
 carries the base Prospector's `CLAIM_RESOURCE` command into every Age). Units have several **silent /
 non-obvious** failure modes that don't match the constructible or modifier rules — read this before
 adding a unit, an icon for one, or a 3D look.
@@ -102,7 +102,7 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   Reuse any base blp (`unitflag_*` + `fi_unit_*_64`); no custom art needed. Pick a donor whose blps live in
   **base-standard** (Scout, Migrant, Settler, Merchant) so they exist in every Age — a `unitflag_prospector`
   ships only in age-modern and won't resolve in AQ/EX.
-- **✅ CUSTOM PNG icons also work (in-game verified 2026-07-12, MA Surveyor):** both rows accept an
+- **✅ CUSTOM PNG icons also work (in-game verified):** both rows accept an
   `fs://game/<modId>/<path>.png` Path instead of a blp — build list, unit flag and panel icon all render it.
   Requirements: `ImportFiles` the PNG **in BOTH `scope="game"` and `scope="shell"` `always` groups** (same
   dual-scope rule as the icon XML), plus an extensionless twin copy of the file (Ireland-mod convention — the
@@ -137,7 +137,7 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   `WorldUI.requestPortrait(unitType, unitType, bg)` → `background-image: url("live:/UNIT_TYPE")`). A
   brand-new unit has no art asset, so it renders black regardless of icons or remaps — `VisualRemaps`
   can't alias it (only 3 founder-overlay remaps exist game-wide; no unit→unit art alias).
-- **✅ THE FIX — a tiny `UIScripts` decorator (in-game verified 2026-07-12, MA Surveyor):** decorate the
+- **✅ THE FIX — a tiny `UIScripts` decorator (in-game verified):** decorate the
   panel and re-point the render at the donor. `Controls.decorate("unit-actions", (component) => …)` wraps
   `component.setupUnitInfo` on the instance (the provider runs at component creation, before attach, and
   must return an object with all four no-op lifecycle methods `beforeAttach/afterAttach/beforeDetach/afterDetach`);
@@ -146,7 +146,7 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   to `url("live:/UNIT_<DONOR>")` — bit-for-bit the call path a real selected donor unit uses, so it renders
   the donor's live 3D portrait. String-match the style (no `Units`/`GameInfo` lookups needed); try/catch
   everything so the worst case is the base black square. Load the script via `<UIScripts>` in a game-scope
-  `always` group. Working example: metropolis-ascendant `ui/surveyor/mad-surveyor-portrait.js`. (The
+  `always` group. Working example: a mod's `ui/<feature>/<feature>-portrait.js` decorator. (The
   army-panel has the same render pattern — extend the same patch there only if the unit can appear in armies.)
 
 ## Per-resource yield & tall gating (effect-side levers)

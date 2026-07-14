@@ -128,25 +128,60 @@ commented out with a leading `;` and default off — **remove the `;` and set th
 argument name or a table's real columns and grepping `Base/modules` isn't enough — the
 runtime DB has the complete picture.
 
-## Live-poking the game: FireTuner (and the UI-mod dev loop)
+## Live-poking the game: FireTuner (DIAGNOSE before you rebuild)
 
-The official SDK (Steam → *Sid Meier's Civilization VII SDK*) ships **FireTuner**, whose
-**Scripting Console** evaluates JavaScript against the running game — the same JS
-environment UI mods run in. Fastest way to answer "what does the API actually return":
+⭐⭐ **THE #1 TIME-SAVER — read the runtime state in the console BEFORE starting any
+restart→retest or litmus cycle.** When a mod misbehaves in-game (wrong number, a yield in
+the wrong bucket, a value you can't explain, a color that won't apply), a data/DB change
+costs a **full app restart + a brand-new game** to test (the app scans mods at launch AND
+bakes data into a save at creation — see the engine law below), so every *guess* there
+burns 5+ minutes. A console probe answers "what is the real value / where does it come
+from" in seconds with no restart. In one session this collapsed an ~8-cycle restart
+marathon (plus two wrong root-cause guesses) into a **single** probe. Guessing a cause and
+rebuilding to test it is the slow path; **read the truth first.**
 
+FireTuner (SDK → *Civilization VII SDK* → FireTuner) has a **Scripting Console** that
+evaluates JavaScript against the running game — the same VM UI mods use. (An in-app
+browser/console tool, if you have one, hits the same VM.) Rules that bite:
+- Input is **single-line** — wrap multi-statement probes in an IIFE.
+- The console prints the **return value**, NOT `console.log` — end with `return JSON.stringify(...)`.
+- In the **console**, `GameContext` is often **undefined** — use `Game.localPlayer` for the
+  local player id (`0` in single-player). Inside a UI-mod **module**, `GameContext.localPlayerID`
+  works. They differ — don't paste a module snippet verbatim into the console.
+- API methods live sometimes as own-props (`Object.keys(obj)`), sometimes on the prototype
+  (`Object.getPrototypeOf(obj)`) — dump both when hunting for a method name.
+
+### Two probes that pay for themselves
+
+**1. Attribute ANY yield to its exact source — the "why is there a mystery +N?" probe.**
+`city.Yields.getYields()` returns a per-yield array (index = `GameInfo.Yields[i]`); each
+yield is `{base:{value,steps}, modifier:{value,steps}}`, and **every step carries a `value`
++ a `description` (its label).** The yields-breakdown UI's "Base / From Buildings / Adjacency
+/ Other" buckets are just these steps grouped by label — so an unexplained **"Other"** line
+*names itself* once you walk the tree:
 ```js
-(function(){const p=Players.get(GameContext.localPlayerID);return JSON.stringify(p.Stats.getNetYield(YieldTypes.YIELD_GOLD));})()
+(()=>{const c=Players.get(Game.localPlayer??0).Cities.getCities()[0];const ys=c.Yields.getYields();let fi=-1;for(let i=0;i<GameInfo.Yields.length;i++)if(GameInfo.Yields[i].YieldType==='YIELD_FOOD'){fi=i;break;}const f=ys[fi];const o=[];const R=(s,d)=>{if(!s)return;for(const x of s)if(x.value){let l=x.description||'(unlabeled)';try{if(typeof l==='string'&&l.startsWith('LOC_'))l=Locale.compose(l);}catch(e){}o.push('  '.repeat(d)+l+' = '+x.value);R(x.base&&x.base.steps,d+1);R(x.modifier&&x.modifier.steps,d+1);}};R(f.base&&f.base.steps,0);o.push('-- MODIFIER --');R(f.modifier&&f.modifier.steps,0);return o.join('\n');})()
 ```
+Swap `YIELD_FOOD` for any yield. This instantly ends "what is that extra +N?" — it once
+identified an under-cap-dividend food bonus that a numeric coincidence had made look like
+an adjacency double-count. (Also: `player.Stats.getYields()` is the player-level twin; diff
+its JSON before/after a change to see which leaf your modifier actually moved.)
 
-- Input is **single-line** — wrap multi-statement probes in an IIFE one-liner.
-- A proven diff technique (from the Policy Yield Previews mod): dump
-  `player.Stats.getYields()` (a recursive per-yield breakdown tree) before and after a
-  change and diff the JSONs to see exactly which leaf moved. This debugs *gameplay*
-  mods too — it shows whether your modifier's contribution actually landed in the
-  yield tree, and under which node.
-- For UI mods, a "Reload UI" action (available as a button in community cheat-panel
-  mods) re-runs all UI scripts without relaunching the game — a much faster iteration
-  loop. Database/text changes still need a full restart.
+**2. Player colors, for panel theming.** `UI.Color.getPlayerColors(pid)` → raw
+`{primaryColor,secondaryColor}{r,g,b,a}`; `UI.Color.createPlayerColorVariants(pair)` → the
+contrast-safe variants. Read them in-console to confirm a civ's actual color before wiring
+CSS (full story + the `color: var(--x)` dead-end in ui-modding.md Colors §2).
+
+### FireTuner vs litmus vs restart — use the cheapest that answers the question
+1. **Read runtime state / attribute a value → FireTuner probe.** No restart. **Always try first.**
+2. **Isolate a MECHANISM (does effect X double? does delivery Y fire?) → litmus mod.** Needs
+   a restart, but strips all other content so exactly one variable is under test. ⚠ Reproduce
+   the *suspected* cause in a litmus **before** restructuring/parking the real feature — a
+   session was burned parking + crashing a live feature to "fix" a non-bug a one-line litmus
+   would have exonerated. When the litmus stays clean across every variant, believe it: the
+   cause is elsewhere (go back to probe #1).
+3. **Only a data/DB/text change needs the full restart + NEW game.** UI (JS/CSS) reloads
+   without a new game (a "Reload UI" cheat-panel button re-runs UI scripts live).
 
 ## The litmus mod
 

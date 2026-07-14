@@ -235,7 +235,7 @@ W("- **Unit healing** — Quinine (+1 HP/turn). **Resource slots** — Camels (+
 W("- **Wonder production (biome-gated)** — Marble (most/all biomes), Ivory (AQ Desert/Plains/Tropical).")
 W("- **Unit-production %** — Salt, Truffles, Cotton (land), Citrus (naval), Incense (religious).")
 W("")
-W("### Tall / 1-city design notes (Metropolis Ascendant lens)")
+W("### Tall / 1-city design notes")
 W("")
 W("- **`_PER_AVAILABLE_RESOURCE_TYPE`** (Gold/Silver/Wine/Furs/Sugar/Spices/Tea/Cocoa) scales with how many")
 W("  copies the **empire** holds and applies in every city — a real empire-wide multiplier, strong in a")
