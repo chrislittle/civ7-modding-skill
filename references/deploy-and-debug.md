@@ -183,6 +183,36 @@ CSS (full story + the `color: var(--x)` dead-end in ui-modding.md Colors §2).
 3. **Only a data/DB/text change needs the full restart + NEW game.** UI (JS/CSS) reloads
    without a new game (a "Reload UI" cheat-panel button re-runs UI scripts live).
 
+### UI mods: the live Coherent/Gameface debugger (port 9444) — DON'T guess DOM selectors
+
+The game's UI is Coherent Gameface, and it exposes a **Chrome-DevTools-Protocol debugger on
+`localhost:9444`** while the game runs. This is the UI equivalent of FireTuner: inspect the LIVE DOM
+and run JS against it — **never guess selectors from the minified base-game `.js`.** (A whole session
+was burned deploy→restart→screenshot guessing `.policy-base-card` vs `<policy-card>`; the debugger
+answered it in one call.)
+
+- **One page target.** `curl -s http://localhost:9444/json` → a single target, `url:"fs://game/root-game.html"`,
+  `webSocketDebuggerUrl: ws://localhost:9444/json/devtools/page/0`. The *entire* UI (every screen, panel,
+  HUD) lives in that one document — so `document.querySelector` from your UIScript reaches all of it.
+- **Evaluate against the live DOM** via `Runtime.evaluate`. No Python needed — modern **Node has a
+  built-in `WebSocket`** global:
+  ```js
+  const ws = new WebSocket('ws://localhost:9444/json/devtools/page/0');
+  ws.addEventListener('open', () => ws.send(JSON.stringify({id:1, method:'Runtime.evaluate',
+      params:{ expression:`(() => { /* query/DUMP the real DOM, return JSON.stringify(...) */ })()`,
+               returnByValue:true }})));
+  ws.addEventListener('message', e => { const m=JSON.parse(e.data);
+      if(m.id===1){ console.log(m.result?.result?.value); process.exit(0);} });
+  ```
+- **The killer move: prototype the fix in the live DOM.** Inject your decorator's rail/badge/tint
+  directly (`document.querySelectorAll(...).forEach(el => el.appendChild(...))`) and the change appears
+  on screen instantly — iterate colours/positions/selectors with zero restarts, then bake the proven
+  code into the mod file. `GameInfo`, `Locale`, `Players`, etc. are all in scope in that page context.
+- **To find a real element:** dump the ancestor chain (tag + classes) of the element whose *own* text is
+  a known label — that reveals the true container class + structure without reading minified source.
+- ⚠ Requires the game to be running with the screen open. It's read/eval only against the live page;
+  baking the result into a mod file still needs the normal deploy (+ UI reload for the new code).
+
 ## The litmus mod
 
 When *anything* is unclear, deploy `assets/litmus-mod/` first. It's a minimal valid

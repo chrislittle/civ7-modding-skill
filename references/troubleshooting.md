@@ -193,7 +193,7 @@ necessary, not sufficient.
 
 Two failure modes when retiring/de-layering a modifier that had a node "note":
 
-1. **Orphaned display row.** MA-style node notes are `ProgressionTreeNodeUnlocks` rows
+1. **Orphaned display row.** Generator-style node notes are `ProgressionTreeNodeUnlocks` rows
    (`TargetKind="KIND_MODIFIER"` → a lightweight display-only "note" modifier that just carries
    the LOC text). If you strip the *bonus* modifier but leave its note's display row, the base
    node keeps **advertising a bonus that no longer exists.** When you retire a modifier, also

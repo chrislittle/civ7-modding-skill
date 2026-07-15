@@ -19,7 +19,7 @@ Base grants the pantheon *pick* via `EFFECT_PLAYER_UNLOCK_PANTHEON` on the **Mys
 ## Minimal worked recipe (four rows + one modifier chain + loc)
 
 ```xml
-<!-- data/ma-pantheon.xml -->
+<!-- data/mod-pantheon.xml -->
 <Database>
   <Types><Row Type="PANTHEON_MA_METROPOLIS" Kind="KIND_BELIEF"/></Types>
   <Beliefs>
@@ -33,7 +33,7 @@ Base grants the pantheon *pick* via `EFFECT_PLAYER_UNLOCK_PANTHEON` on the **Mys
 </Database>
 ```
 ```xml
-<!-- data/ma-pantheon-gameeffects.xml : <GameEffects xmlns="GameEffects"> -->
+<!-- data/mod-pantheon-gameeffects.xml : <GameEffects xmlns="GameEffects"> -->
 <Modifier id="MOD_PANTHEON_MA_METROPOLIS" collection="COLLECTION_MAJOR_PLAYERS" effect="EFFECT_ATTACH_MODIFIERS">
   <SubjectRequirements><Requirement type="REQUIREMENT_PLAYER_HAS_PANTHEON"/></SubjectRequirements>
   <Argument name="ModifierId">ATTACH_PANTHEON_MA_METROPOLIS</Argument>

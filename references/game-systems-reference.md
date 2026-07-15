@@ -26,7 +26,7 @@ is useful: the numbers aren't grep-able. But it also means:
 
 ## Settlements, population & the tall/wide math
 
-The most MA-relevant section. Pairs with
+The most tall-mod-relevant section. Pairs with
 [yield-and-balance-design.md](yield-and-balance-design.md) (the design *language*) — this
 is the underlying *arithmetic*.
 

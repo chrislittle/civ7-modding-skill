@@ -594,43 +594,65 @@ and JS `import`. PNGs used as data icons must also be `ImportFiles`'d in the mod
 (dev-kit "Database Modding" doc). A bare `fs://game/logo.png` silently fails to load
 (you get the frame/ring but a blank image) — this cost several debug cycles.
 
-## Branding / restyling base cards (policy-card recipe)
+## Branding / restyling base cards (policy-card recipe — live-DOM-verified)
 
 Base **policy/tradition cards do NOT expose per-card art to data** — the card icon
 and background are computed in the UI JS. Confirmed dead ends (don't retry):
-- `IconDefinitions[TraditionType]` is never consulted for the card icon.
-- The card bg/icon derive from the card's `TraitType` (`bg-panel-<trait>` /
-  `civ_sym_<trait>`), BUT the engine forces the UI model's `TraitType` to
-  **`TRAIT_RANDOM`** for any tradition not owned by a civ — so a modded
-  `Traditions.TraitType` column is ignored for card art. Native recolor = impossible
-  for modded non-civ cards.
+`IconDefinitions[TraditionType]` is never consulted; the card art derives from the
+UI model's `TraitType`, which the engine **forces to `TRAIT_RANDOM`** for any
+tradition not owned by a civ. So a modded `Traditions.TraitType` is ignored — native
+recolor is impossible for modded non-civ cards. Brand them from JS instead.
 
-**The working recipe = JS decorator (tag) + CSS override (style):**
-1. A `UIScripts` decorator runs a `MutationObserver` on `.policy-base-card` mounts.
-   There's **no TraditionType DOM attribute** — identify each card by matching its
-   displayed name (`.font-title.uppercase.text-sm.font-bold`) against
-   `GameInfo.Traditions` (`Locale.compose(t.Name)`), then tag yours with a
-   **`data-*` attribute** (e.g. `card.dataset.maCard='1'`). ⚠ Use a data-attr, NOT a
-   class — SolidJS re-renders wipe added classes (the base reapplies `class`
-   reactively); data-attrs and appended child nodes survive.
-2. `Controls.loadStyle('fs://game/<modId>/ui/x.css')` a stylesheet targeting
-   `[data-your-attr]` and override the card's **own** styles with `!important`:
-   - **Recolor**: override `background` / `border` (defined on `.policy-base-bg` /
-     `.tradition-base-bg` in `screen-policies.scss`).
-   - **Swap the icon**: the `Icon` component renders an **inline `background-image`
-     with no `!important`**, so `[data-your-attr] .policy-card-icon { background-image:
-     url(...) !important }` wins. To frame it like the stock icon: keep the inner
-     `.policy-card-icon` (base 38px, positioned by `-ml-5` to sit in the left margin
-     clear of text), add `border-radius:50% + border + background-color` to make a
-     badge, and `background-image:none` on `.policy-card-icon-backer` to hide the base
-     `accent_circle`. Overriding geometry (width/margin) tends to clip or overlap text
-     — prefer the base element's own position/size.
+> ⚠️ **Inspect the LIVE DOM before writing selectors — don't guess from the minified
+> base `.js`.** The real class names differ from what source-reading suggests, and a
+> card renders with DIFFERENT DOM in different states (see below). Use the Coherent
+> debugger (port 9444) to dump the real structure and to prototype the fix by injecting
+> into the running screen — see deploy-and-debug.md. Every selector below was verified
+> that way; a whole session was burned guessing before.
 
-Fragility is **cosmetic-only**: if a patch breaks the decorator, you lose the tint/
-logo, never the card's function (it still renders + slots via the base UI). This is
-the intended way to brand modded cards; a *dedicated custom slot type* does the
-opposite (it fails to render at all — see the government screen only supports
-Tradition/Policy/Crisis slot columns).
+**The recipe = a `UIScripts` decorator: MutationObserver → identify → restyle inline.**
+
+1. **Observe + identify.** `MutationObserver(document.body, {childList,subtree})`,
+   debounced rescan of `.policy-base-card`. There is **no TraditionType DOM attribute** —
+   match each card by its displayed NAME: read `.font-title.uppercase.text-sm.font-bold`
+   `.textContent` and look it up against `GameInfo.Traditions` (`Locale.compose(t.Name)`,
+   filter your `TRADITION_MOD_` prefix). Appended child nodes + `data-*` attrs SURVIVE the
+   SolidJS redraws on policy cards (⚠ unlike `tree-card-v2`, where injected children are
+   wiped). Added *classes* get reset — use data-attrs or inline styles.
+
+2. **⚠ Set colours INLINE from JS, never via CSS `var()`.** Coherent silently ignores
+   `color`/`background: var(--x)` (the same dead-end the yield dashboards hit), so a
+   CSS-class + custom-property theming approach renders nothing. Apply hex colours with
+   `el.style.background = '#...'` etc. `Controls.loadStyle` is still fine for static
+   positioning that doesn't vary, but anything lane/player-coloured must be inline.
+
+3. **Swap the icon in place** (don't overlay a floating badge — it leaves the stock art
+   poking out). The icon is TWO nested elements: `.policy-card-icon-backer` (the ~50px
+   hexagon frame, `blp:accent_hex_*`) CONTAINS `.policy-card-icon` (the ~38px inner glyph,
+   `blp:icon_*`, pulled left by `-ml-5` into the gutter). To brand: hide the inner
+   `.policy-card-icon` (`backgroundImage='none'`) and **restyle the backer element itself**
+   into your badge — `borderRadius:50%`, `border`, a dark `background`, and inject an inline
+   `<svg>` logo child (inline SVG renders in Gameface — no PNG/rasterizer needed). Shift it
+   a few px left (`transform:translateX(-Npx)`) so it clears the description text (which
+   starts ~x:43), and give it a higher `zIndex` than any rail you draw so the rail passes
+   behind it.
+
+4. **⚠ Handle the SLOTTED state, not just the chooser list.** A card in the "available"
+   list has ONE icon backer. When SLOTTED it gains a second `.policy-card-icon-backer.policy-grayscale`
+   (the dual-slot "policy OR tradition" indicator), and the SLOT itself renders a greyscale
+   placeholder socket BEHIND the card whose `-ml-5` icons poke out past your badge. Empty
+   slots are greyscale placeholders too. For a fully clean look, **hide every
+   `.policy-card-icon-backer.policy-grayscale` globally** (a card's own icon backer is
+   non-greyscale, so it's untouched) — one robust rule, no per-card position guessing.
+   **Test your branding in BOTH the available list AND slotted.**
+
+⚠ **Coherent `querySelector` rejects `:not()`** (`SyntaxError: Invalid CSS selector`) —
+filter in JS (`[...els].filter(...)`) instead.
+
+Fragility is **cosmetic-only**: if a patch breaks the decorator, you lose the tint/logo,
+never the card's function (it still renders + slots via the base UI). This is the intended
+way to brand modded cards; a *dedicated custom slot type* does the opposite (it fails to
+render at all — the government screen only supports Tradition/Policy/Crisis slot columns).
 
 ### Culture/tech TREE nodes (`tree-card-v2` in `screen-culture-tree`) — glow/highlight (⭐ 2026-07-13)
 Worked example: a custom per-node "boost earned" glow. Hard-won specifics that differ from policy cards:
@@ -831,7 +853,7 @@ dependency **Custom Civ Art Fixes** (Slothoth, workshop `3735898897`) is a gener
   flagged **`CivInjectedIcon`**, it substitutes the player civ's `cult_<civ>` icon.
 
 **When this matters:** only for a full custom **civilization**. A custom **progression tree
-granted to all players** (e.g. an MA-wide "Ascendancy" tree) is *not* a civ — the splash,
+granted to all players** (e.g. a mod-wide custom civics/tech tree) is *not* a civ — the splash,
 chooser-card, and diplomacy fixes never fire, and its nodes use plain `IconString` /
 `IconAliases` (section 4), which already work without the shim. Reach for Art Fixes (and
 `CivInjectedIcon`) only if you build an actual civ or a per-civ-injected culture node.

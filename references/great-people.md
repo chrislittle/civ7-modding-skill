@@ -27,7 +27,7 @@ Abilities are **100% standard GameEffects `Modifier`s** — nothing special (`EF
 Earned by owning mod building `BUILDING_MA_FORUM` at population ≥12; Retire in an owned Urban district → Golden Age.
 
 ```xml
-<!-- data/ma-greatpeople.xml -->
+<!-- data/mod-greatpeople.xml -->
 <Database>
   <Types>
     <Row Type="GREAT_PERSON_CLASS_MA_STEWARD" Kind="KIND_GREAT_PERSON_CLASS"/>
@@ -63,7 +63,7 @@ Earned by owning mod building `BUILDING_MA_FORUM` at population ≥12; Retire in
 </Database>
 ```
 ```xml
-<!-- data/ma-greatpeople-gameeffects.xml : GameEffects xmlns="GameEffects" -->
+<!-- data/mod-greatpeople-gameeffects.xml : GameEffects xmlns="GameEffects" -->
 <Modifier id="MA_STEWARD_GOLDEN_AGE" collection="COLLECTION_OWNER" effect="EFFECT_PLAYER_GRANT_GOLDEN_AGE" run-once="true" permanent="true"/>
 ```
 To instead **extend an existing** class, drop the `GreatPersonClasses`/`Units` blocks and add `GreatPersonIndividuals` + `GreatPersonIndividualActionModifiers` referencing e.g. `GREAT_PERSON_CLASS_TJATY`.
