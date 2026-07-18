@@ -11,13 +11,13 @@ A custom unit is buildable from turn 1 of its Age with just these rows (root `<D
 `UpdateDatabase`), no tech gate needed — exactly like the base Scout/Settler:
 
 ```xml
-<Types>      <Row Type="UNIT_MA_SURVEYOR" Kind="KIND_UNIT"/></Types>
-<Units>      <Row UnitType="UNIT_MA_SURVEYOR" Name="LOC_..._NAME" Description="LOC_..._DESCRIPTION"
+<Types>      <Row Type="UNIT_MYMOD_SURVEYOR" Kind="KIND_UNIT"/></Types>
+<Units>      <Row UnitType="UNIT_MYMOD_SURVEYOR" Name="LOC_..._NAME" Description="LOC_..._DESCRIPTION"
                   BaseSightRange="1" BaseMoves="3" UnitMovementClass="UNIT_MOVEMENT_CLASS_FOOT"
                   Domain="DOMAIN_LAND" CoreClass="CORE_CLASS_CIVILIAN" FormationClass="FORMATION_CLASS_SUPPORT"
                   ZoneOfControl="false" CostProgressionModel="COST_PROGRESSION_PREVIOUS_COPIES"
                   CostProgressionParam1="20"/></Units>
-<Unit_Costs> <Row UnitType="UNIT_MA_SURVEYOR" YieldType="YIELD_PRODUCTION" Cost="30"/></Unit_Costs>
+<Unit_Costs> <Row UnitType="UNIT_MYMOD_SURVEYOR" YieldType="YIELD_PRODUCTION" Cost="30"/></Unit_Costs>
 ```
 
 - **No `ProgressionTreeNodeUnlocks` row = buildable from the start of the Age.** Adding one tech-gates the
@@ -35,7 +35,7 @@ duplicate-insert **crash**, so emit the chain for AQ/EX only):
 ```xml
 <Types>                <Row Type="ABILITY_CLAIM_RESOURCE" Kind="KIND_ABILITY"/></Types>
 <Tags>                 <Row Tag="UNIT_CLASS_PROSPECTOR" Category="UNIT_CLASS"/></Tags>
-<TypeTags>             <Row Type="UNIT_MA_SURVEYOR" Tag="UNIT_CLASS_PROSPECTOR"/></TypeTags>
+<TypeTags>             <Row Type="UNIT_MYMOD_SURVEYOR" Tag="UNIT_CLASS_PROSPECTOR"/></TypeTags>
 <UnitClass_Abilities>  <Row UnitAbilityType="ABILITY_CLAIM_RESOURCE" UnitClassType="UNIT_CLASS_PROSPECTOR"/></UnitClass_Abilities>
 <UnitAbilities>        <Row UnitAbilityType="ABILITY_CLAIM_RESOURCE" Name="LOC_..._NAME" Description="LOC_..._DESC"/></UnitAbilities>
 <ChargedUnitAbilities> <Row UnitAbilityType="CHARGED_ABILITY_CLAIM_RESOURCE" RechargeTurns="999"/></ChargedUnitAbilities>
@@ -95,8 +95,8 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   **FONTICON** portrait row. Flag alone → the panel/list portrait is blank.
   ```xml
   <IconDefinitions>
-    <Row><ID>UNIT_MA_SURVEYOR</ID><Path>blp:unitflag_immigrant</Path></Row>
-    <Row ID="UNIT_MA_SURVEYOR" Context="FONTICON" IconSize="64" Path="blp:fi_unit_migrant_64" />
+    <Row><ID>UNIT_MYMOD_SURVEYOR</ID><Path>blp:unitflag_immigrant</Path></Row>
+    <Row ID="UNIT_MYMOD_SURVEYOR" Context="FONTICON" IconSize="64" Path="blp:fi_unit_migrant_64" />
   </IconDefinitions>
   ```
   Reuse any base blp (`unitflag_*` + `fi_unit_*_64`); no custom art needed. Pick a donor whose blps live in
@@ -127,8 +127,8 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   `To`; the donor art is `From`). Getting it backwards → no model.
   ```xml
   <VisualRemaps><Row>
-    <ID>REMAP_MA_SURVEYOR</ID><DisplayName>LOC_..._NAME</DisplayName><Kind>UNIT</Kind>
-    <From>UNIT_MIGRANT</From><To>UNIT_MA_SURVEYOR</To>
+    <ID>REMAP_MYMOD_SURVEYOR</ID><DisplayName>LOC_..._NAME</DisplayName><Kind>UNIT</Kind>
+    <From>UNIT_MIGRANT</From><To>UNIT_MYMOD_SURVEYOR</To>
   </Row></VisualRemaps>
   ```
   This makes the unit render as the donor **on the map and in the build menu**.
@@ -148,6 +148,19 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
   everything so the worst case is the base black square. Load the script via `<UIScripts>` in a game-scope
   `always` group. Working example: a mod's `ui/<feature>/<feature>-portrait.js` decorator. (The
   army-panel has the same render pattern — extend the same patch there only if the unit can appear in armies.)
+- **⚠ The remapped map model is a FIXED, era-wrong mesh — and this can't be fixed from data (verified
+  2026-07-15).** A base unit's on-map 3D model is resolved by the OWNER's **Civilization → UnitCulture**
+  (`VisArt_CivilizationUnitCultures`: `CivilizationType → UnitCulture`). Because you play a different civ
+  each Age, the *same* `UNIT_MIGRANT` looks antiquity-robed under an Antiquity civ and 18th-c.-wigged under
+  an Exploration civ — the unit isn't evolving, the civ is. But a `VisualRemap` has **no culture/Age
+  column** (From/To/ID/Kind/DisplayName only), and your custom unit has **no UnitCulture of its own**, so
+  the relink resolves to a **default-culture** donor mesh — e.g. the wigged Migrant shown even in Antiquity,
+  never the player's current-civ variant. There is no remap knob and no accessible unit→UnitCulture table to
+  fix it; getting per-Age/per-civ art means wiring the unit into the `VisArt`/art-definition pipeline (visual
+  layer / dev art tools), i.e. bespoke art, not config. Practical takeaway: **pick a donor whose *default*
+  mesh reads acceptably in your target Age**, or accept the cosmetic mismatch — donor-swapping and
+  FormationClass changes can't make the remap Age-adapt (and matching the donor's FormationClass is separately
+  required for cloned commands like `CLAIM_RESOURCE`, so don't change it for looks).
 
 ## Per-resource yield & tall gating (effect-side levers)
 

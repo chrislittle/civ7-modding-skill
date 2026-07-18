@@ -193,6 +193,16 @@ tall/yield mods and have non-obvious quirks:
 > `EFFECT_CITY_ADJUST_WORKER_YIELD` (a flat per-specialist yield, e.g. Abbasid Ulema) is
 > therefore **off-design** under 1.4.0 — it re-introduces the base yield the devs removed.
 >
+> **Negative-amount semantics (proven in-game 2026-07-18):**
+> `EFFECT_CITY_ADJUST_YIELD_PER_POPULATION` **ignores a negative `Amount` entirely** — the
+> modifier attaches but subtracts nothing (zero base-game uses of a negative; a "-1 per 2
+> Urban" malus silently became a freebie). To build a malus, use
+> `EFFECT_CITY_ADJUST_WORKER_YIELD` with a negative `Amount` (**-N per Specialist**) — the
+> base game proves the negative path with `TRADITION_OPPRESSIVE_TARIFFS` (-1 Gold per
+> Specialist), and a modded "-1 Food per Specialist" verified exactly in-game (city Food
+> dropped by precisely the Specialist count). Off-design for a *bonus*, but the sanctioned
+> shape for a per-specialist *penalty*.
+>
 > Baseline cap, for gating math: in **Antiquity the base specialist cap is 0**, and
 > researching **Currency** (`NODE_TECH_AQ_CURRENCY`, base game's `MOD_AQ_SPECIALIST_CAP_INCREASE`)
 > grants the first +1 — so Currency is effectively "specialists unlocked." The global

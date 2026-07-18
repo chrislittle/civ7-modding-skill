@@ -215,7 +215,18 @@ template can carry its own `<style>` block — sizes in `rem`.
   space-between` instead.
 - Render `[icon:…]`/`[B]`/`[N]` markup by assigning `el.innerHTML =
   Locale.stylize(locTagOrText)`; `textContent` + `Locale.compose` leaves the tokens
-  as literal text.
+  as literal text. `[STYLE:cls]text[/S]` becomes `<span class="cls">…</span>` and `[N]`
+  splits into separate `<p cohinline>` blocks — so a LOC string can carry its own
+  styled spans (e.g. a callout chip) that your injected stylesheet then paints.
+- **`content: attr(data-x)` is NOT resolved** (renders nothing). Static
+  `content:"…"` works fine, so for per-item text bake one rule per item
+  (`.tag-A::after{content:"A text"}`) and toggle the class — don't rely on `attr()`.
+- **CSS unicode escapes in `content` don't parse** (`content:"\2713"` shows literal
+  `13`, not ✓). Put the literal character in the string instead.
+- **Injected `<style>` class rules DO apply** (including `background`/`border` on a
+  `::after`), but only with LITERAL colours — Coherent ignores `var()`. `getComputedStyle`
+  is unreliable here (reports the rule as absent even when it renders), so verify visually,
+  not by reading computed style.
 
 ### Custom art on a dock button
 
@@ -236,6 +247,34 @@ passed to `addButton`:
 Load it at decorate time with `Controls.loadStyle(...)` (the panel's
 `Controls.define` styles only load with the panel). Leave ~15% transparent margin in
 the PNG or the art pokes outside the circular button frame.
+
+### Durable overlays on progression-tree cards (badges, pills, tints)
+
+The culture/tech tree re-renders its cards (`tree-card-v2[type]`) on any redraw, and
+**the engine's reconciliation deletes any child element you inject** — so an appended
+`<div>` badge vanishes. Two things survive: **inline style changes on existing
+elements**, and **CSS pseudo-elements** (they're not DOM nodes). So to add a badge/pill
+to a card: inject a stylesheet with a `::after` rule (static `content:"…"`, literal
+colours) and *toggle a class* on the card's own bar element from a decorator. Drive it
+from a rAF poll in a `Controls.decorate('screen-culture-tree', …)` component; identify
+your nodes by `GameInfo.ProgressionTreeNodes.lookup(Number(el.getAttribute('type')))`.
+For a two-state pill (e.g. available vs earned) just swap between two classes.
+
+- **Node icons** are the node row's `IconString`, resolved live by the UI from the icon
+  DB — so changing it shows on an existing save after a restart (no new game needed;
+  it's display metadata, not baked gameplay state). Reusing the base game's own generic
+  civic glyphs (`cult_*`, distinct per Age — Antiquity `cult_commerce/literacy/…`,
+  Exploration `cult_economics/mercantilism/…`, Modern `cult_capitalism/militarism/…`)
+  gives native-quality, theme-matched icons for a custom tree with zero art. (Hand-authored
+  SVG can't match the game's 3D-rendered raster icons; base-icon reuse or `blp:` is the way
+  to that fidelity. `background-image: url(<svg>)` doesn't render in Coherent anyway — only
+  inline `<svg>` elements do. To ship a *bespoke* raster icon (`IconDefinition` `Path` → an
+  imported PNG), author it as SVG and **rasterize to PNG via a headless browser canvas** —
+  `new Image()` from a data-URI SVG → `drawImage` to `<canvas>` → `toDataURL("image/png")` →
+  `fetch`-POST the base64 to a small CORS server that writes it to disk. Recipe detail in
+  `custom-pantheons.md` (works for any custom raster icon, not just pantheons).)
+- A node's **hover tooltip carries no node id**; link it to its node by finding the card
+  that currently has a `hover` class and reading that card's `type`.
 
 ## Lenses and lens layers
 
@@ -658,7 +697,7 @@ render at all — the government screen only supports Tradition/Policy/Crisis sl
 Worked example: a custom per-node "boost earned" glow. Hard-won specifics that differ from policy cards:
 - **Node identity = the `type` attribute, and it is the NUMERIC node HASH, not the string.** Select
   `tree-card-v2[type]`; resolve the string via `GameInfo.ProgressionTreeNodes.lookup(Number(type))
-  ?.ProgressionTreeNodeType` (filter e.g. `startsWith('NODE_MA_')`). `Game.ProgressionTrees.getNode
+  ?.ProgressionTreeNodeType` (filter e.g. `startsWith('NODE_MYMOD_')`). `Game.ProgressionTrees.getNode
   (pid, hash)` / `getNodeState` / `Players.get(pid).Culture.getNodeCost(hash)` accept the hash.
 - **⚠ On tree-card-v2, INJECTED CHILD ELEMENTS ARE DELETED on the next redraw** (unlike the policy-card
   case above where appended children survive — the tree re-renders its card subtree aggressively). A

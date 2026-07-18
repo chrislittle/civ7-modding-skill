@@ -143,3 +143,62 @@ no reward attached? If yes, add a constraint / raise the bar / move it off-meta 
 mint many distinct lane-specific accomplishments from building COUNT. **Decouple the trigger from the
 reward's lane** — the trigger is any good accomplishment (above); the card it unlocks carries the lane
 flavor. Lock the *archetype + condition*; tune the *threshold* in playtest.
+
+## Reading Triumph state from JS (UI scripts / dashboards)
+
+GameCore still calls individual Triumphs "legacies" — the UI layer renamed them (comment in
+`base-standard/ui-next/screens/legacies/legacies-model.ts`). The live-state API (same calls the
+base Legacies screen makes):
+
+```js
+const legacies = Players.get(playerId)?.Legacies;          // may be null — guard it
+legacies.isTriggered("LEGACY_MY_TYPE")                     // true once the Triumph fired
+legacies.getProgress("LEGACY_MY_TYPE")                     // { progress: [{current, total}], raceWinner } | null
+```
+
+Static defs: `GameInfo.Legacies` (per-Age scoped table) with `LegacyType`, `LegacySubtype`,
+`Name/Description/TriggerDescription`, `MajorLegacy`, `FirstPlayerOnly`. For races,
+`getProgress().raceWinner` holds the winner id (-1 = unclaimed); `FirstPlayerOnly` defs lock for
+everyone else once any player triggers.
+
+## REQUIREMENT_TRIUMPHS_COMPLETED — argument variants
+
+Observed across base + DLC (ada-lovelace metaprogression) + modding:
+- `MajorOnly=True` + `MinCount=N` — at least N completed **Major** Triumphs
+- `MajorOnly=True` alone — MinCount defaults to 1
+- `TriumphTypes` = comma list of LegacyTypes (+ optional `MinCount`, default 1)
+- `TriumphTypes` + `CheckPreviousAge=AGE_X` — reads the PREVIOUS age's completion — **the only
+  cross-age-flip gating primitive** (node research and player properties do NOT survive the flip).
+  Caveat: the Legacies *table* is age-scoped, so a prior-age LegacyType isn't in the current age's
+  `GameInfo.Legacies` — UI reads of it come back false/absent even where the requirement gates fine.
+
+## Progress bars: ProgressWeight & natural "N/M" counters (proven in-game 2026-07-18)
+
+The Triumph progress bar shows **100 points per weighted requirement** in the trigger set — a
+3-requirement set displays as "0/300" and a completed boolean as "200/200", which reads as garbage
+next to base Triumphs' natural "2/7" counters. Rules learned the hard way:
+
+1. **Natural counts (0/3 wonders, 4/6 routes) render only when EXACTLY ONE requirement in the set
+   carries weight.** Design feat trigger sets down to a single countable requirement wherever
+   possible; a compound trigger will always display as ×100 points.
+2. `ProgressWeight` as a GameEffects **XML attribute is silently dropped** by the parser — it must
+   go through the **database**: `<Update><Where RequirementId="..."/><Set ProgressWeight="0"/></Update>`
+   on the `Requirements` table, in a file that loads AFTER the GameEffects file that creates them.
+3. Auto-generated requirement ids are **`<setId>_<n>`** (1-based, in declaration order) — that's
+   the id the `<Where>` must target. FireTuner-verified for SubjectRequirements sets.
+4. Zero-weighting every requirement except the countable one gives base-style natural counters while
+   keeping guards (e.g. `REQUIREMENT_GAME_IS_STARTED`) in the set.
+
+## The Age-transition latch (and the GAME_IS_STARTED guard)
+
+**During an Age flip, transient world state can read wrong for a few evaluation ticks** — proven
+case: `REQUIREMENT_CITY_IS_DISTANT_LANDS` transiently read TRUE for homeland cities at the AQ→EX
+flip. Continuous yield modifiers self-correct next tick (harmless), but **every one-shot evaluator
+LATCHES the bad read permanently**: Triumph/Legacy requirement sets complete falsely, `RunOnce`
+modifiers fire, story/quest watchers trigger — all at turn 1 of the new Age.
+
+The guard is Firaxis's own anti-init idiom: AND `REQUIREMENT_GAME_IS_STARTED` into the requirement
+set of every LATCHING evaluator that gates on transient state (base proof: America's frontier gold
+trait, Xerxes' settlement cap). Do NOT guard continuous yields — they need no guard and per-Age
+gating of static effects has its own blink-at-rollover problem. Zero-weight the guard requirement
+(rule above) so it doesn't pollute the progress bar.

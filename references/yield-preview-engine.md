@@ -160,3 +160,45 @@ specific sources (tree node unlocked via `Game.ProgressionTrees.getNodeState`, t
 your own settlement count) directly, instead of scanning all of `GameInfo.DynamicModifiers`.
 The full scan matters only when you must preview *arbitrary* (including other mods'/base)
 constructibles, as a general planner does.
+
+## The OTHER preview engine: integrating with Leonardfactory's Policy Yields Preview
+
+`lf-policies-yields-preview` (Steam workshop `1295660/3515801789`, repo
+`github.com/rockfactory/civ7-lf-policies-yields-preview`, MIT) is a general yield-COMPUTATION
+engine: it resolves a modifier's effect x live game state directly, sidestepping the engine
+attribution tree entirely (so it is immune to the "per-pop yields land in the anonymous Other
+bucket" problem that kills attribution-based readouts). Integration lessons (all in-game-proven
+2026-07-18):
+
+**Public API** — `globalThis.LfYieldsPreview`:
+- `previewModifierByIds([modifierIds])` -> `{ yields: {YIELD_X: n}, isValid, error }` (never throws
+  at the API boundary; internal resolver errors surface as `isValid:false`)
+- `renderYieldsPreviewBox(result)` -> styled HTMLDivElement in his exact look
+- Consumer pattern: gate every call on `if (globalThis.LfYieldsPreview)`, load your consumer
+  UIScript at LoadOrder > 500 game-scope, and degrade gracefully when absent. `types/extension-api.d.ts`
+  ships typings.
+
+**Architecture that works: blind ID lists.** Feed his engine the modifier ids your generator already
+knows (a tiny emitted manifest file), including ALL mutually-exclusive window/variant copies — his
+engine EVALUATES your requirement sets against live state, so the wrong-window copies contribute 0
+and no gating logic is needed on your side. Values are int-rounded (preview-grade, not ledger-exact).
+
+**THE ORDER LAW (generic consumer-interop lesson):** his requirement evaluation is a JS `.every()`
+over `REQUIREMENTSET_TEST_ALL` — it SHORT-CIRCUITS, and an *unhandled RequirementType throws*,
+killing the whole preview batch for that card. So when authoring requirement sets that third-party
+resolvers will read: **put cheap, universally-handled requirements FIRST and exotic/unpreviewable
+ones LAST**. A set that fails early on a count requirement never reaches the throwing one; the same
+set with the exotic requirement first is dead in every state.
+
+**Known resolver gaps + upstream fixes filed:** `REQUIREMENT_PLOT_HAS_CONSTRUCTIBLE` lacked
+`ConstructibleClass` (PR #17) and `REQUIREMENT_TRIUMPHS_COMPLETED` / `REQUIREMENT_PLAYER_HAS_ACTIVE_TRADITION`
+had no handlers (PR #18 — implemented with `player.Legacies.isTriggered` + `isTraditionActive`,
+see legacies-triumphs-dedications.md). Pattern for contributing: his `requirement.js` is one big
+switch keyed on RequirementType; handlers document observed base-XML argument variants and THROW on
+unhandled shapes.
+
+**Patch-test technique for upstream PRs:** UI scripts load at app launch and need no new game — so
+you can verify a fix against a real save by copying the edited script OVER the installed workshop
+copy (back up the original first), relaunching, and probing via the console
+(`JSON.stringify(globalThis.LfYieldsPreview.previewModifierByIds(["SOME_ID"]))`). Steam "verify
+integrity" or any Workshop update restores the original.
