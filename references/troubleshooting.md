@@ -254,3 +254,30 @@ is fine, the bug is in your content (sections above). If even the litmus does no
 the bug is environmental (deploy path, enable, version, new-game). This binary split is
 almost always faster than re-reading your XML for the tenth time.
 → [deploy-and-debug.md](deploy-and-debug.md#the-litmus-mod)
+
+## Plot-yield tradition slotted mid-session pays NOTHING until app relaunch
+
+**Symptom (2 sightings, 2026-07):** a custom Tradition whose modifier is
+`COLLECTION_PLAYER_PLOT_YIELDS` + `EFFECT_PLOT_ADJUST_YIELD` with a
+`REQUIREMENT_PLOT_HAS_CONSTRUCTIBLE ConstructibleClass=WONDER` subject filter ("+2 Culture on
+each Wonder plot") applies no yields when the Tradition is slotted mid-session; after a full app
+exit+relaunch the same save pays correctly. Requirements were satisfied the whole time - it is
+an attach/refresh failure, not a gating bug.
+
+**Scope narrowed (in-game A/B, 2026-07-18):** the plot-collection mechanism is NOT broken
+generally — a sibling card on the same collection/effect with the same owner-side window
+requirements but a `ConstructibleType` (specific buildings) plot filter paid **instantly** on
+mid-session slot (tile 10→15, same save). The failure is specific to the wonder-plot shape
+(the `ConstructibleClass=WONDER` filter and/or wonder-plot handling).
+
+**Fix that works (✅ in-game verified 2026-07-18 — pays the instant the card slots):** when the
+payload can be expressed per-CONSTRUCTIBLE rather than per-plot,
+use the base game''s other idiom — `COLLECTION_OWNER` + `EFFECT_PLAYER_ADJUST_CONSTRUCTIBLE_YIELD`
+with `ConstructibleClass`/`ConstructibleType`/`Tag` (base proof: TRADITION_STYLE_EMPIRE "+2
+Culture on Wonders", COCORICO "+2 Happiness on Wonders"). No plot machinery, and OWNER-collection
+tradition modifiers provably apply the moment the card is slotted. Bonus: Leonardfactory''s
+yields-preview engine computes this effect natively (all three filter args).
+
+Plot-only payloads (appeal-gated tiles, two-buildings-on-one-plot) can''t be re-shaped this way -
+if one of those shows the same symptom, suspect the plot-collection family generally and test
+base Skazki mid-session to isolate engine vs mod.
