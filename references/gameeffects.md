@@ -193,6 +193,16 @@ tall/yield mods and have non-obvious quirks:
 > `EFFECT_CITY_ADJUST_WORKER_YIELD` (a flat per-specialist yield, e.g. Abbasid Ulema) is
 > therefore **off-design** under 1.4.0 — it re-introduces the base yield the devs removed.
 >
+> **Tooltip self-attribution is IGNORED by per-X city effects (proven in-game, 2 effects):**
+> the `Tooltip` argument names a modifier's line in the city yield breakdown for FLAT effects
+> (`EFFECT_CITY_ADJUST_YIELD` — works, base-proven), but the **per-X family silently drops it** —
+> proven for `EFFECT_CITY_ADJUST_YIELD_PER_POPULATION` (2026-07-17) and
+> `EFFECT_CITY_ADJUST_YIELD_PER_SUZERAINED_CITY_STATE_TYPE` (2026-07-19): the yield pays fully but
+> lands in the breakdown's anonymous **"Other"** bucket regardless of the argument. Engine-side,
+> unfixable from XML. Consequence: any name-matching readout (dashboard attribution) cannot count
+> per-X yields — compute them from state instead (see yield-preview-engine.md), and treat "Other"
+> lines as expected for per-X content, not a bug.
+>
 > **Negative-amount semantics (proven in-game 2026-07-18):**
 > `EFFECT_CITY_ADJUST_YIELD_PER_POPULATION` **ignores a negative `Amount` entirely** — the
 > modifier attaches but subtracts nothing (zero base-game uses of a negative; a "-1 per 2
@@ -477,3 +487,36 @@ they survive Age-transition windows when the gate is briefly unmet.
 
 Rule of thumb: if a modifier's `collection` starts with `COLLECTION_PLAYER_` or
 `COLLECTION_OWNER` and you're about to bind it directly at game level, stop — wrap it.
+
+## Per-Age variants of an always-scoped row (the "description repoint" idiom)
+
+An always-scoped row (e.g. a Tradition that must persist across Age transitions) has ONE value per
+column — but you can vary what the player sees per Age with an **age-scoped `<Update>`** that
+repoints a column at a different LOC tag (or value):
+
+1. Register the row once in an always-scope action group (e.g. LoadOrder 107).
+2. Emit the variant text rows under distinct tags (`LOC_X_DESC`, `LOC_X_DESC_EX`, `LOC_X_DESC_MO`)
+   in the always text file.
+3. In each later Age's per-age action group (higher LoadOrder so the row exists), add
+   `<Traditions><Update><Where TraditionType="X"/><Set Description="LOC_X_DESC_EX"/></Update></Traditions>`.
+   The per-age group re-applies at every Age load, so the column tracks the current Age.
+
+This is the same per-age `<Update>` idiom the base game uses to change resource classes by Age.
+Verified 2026-07-19 (a persistent Tradition whose effect re-anchors on each Age's buildings — the
+modifiers re-bind per Age anyway; this closes the gap for the DESCRIPTION the player reads).
+
+## Great Work slots: which effect takes which SlotType (silent no-op trap)
+
+Two effects add Great Work slots, and they differ on `GREATWORKSLOT_ANY`:
+
+- `EFFECT_CITY_ADJUST_GREAT_WORK_SLOTS` (city collection; args `ConstructibleType` or `Tag`,
+  `SlotType`, `Amount`) — **base NEVER passes `GREATWORKSLOT_ANY`**; every live usage types the
+  slot (`GREATWORKSLOT_RELIC` on Temples/Palace: Founder belief BONUS_8_RELIC_SLOT_TEMPLE, Edward
+  Teach; Alexander omits SlotType entirely). Passing `ANY` **silently no-ops** (proven in-game
+  2026-07-19: "+2 slots on Temples" with ANY added nothing; no log error). Type it to the Age's
+  Great Work: `GREATWORKSLOT_WRITING` (AQ Codices) / `GREATWORKSLOT_RELIC` (EX) /
+  `GREATWORKSLOT_ARTIFACT` (MO).
+- `EFFECT_CONSTRUCTIBLE_ADJUST_GREAT_WORK_SLOTS` (constructible collection +
+  `REQUIREMENT_CONSTRUCTIBLE_HAS_GREAT_WORK_SLOT`) — `GREATWORKSLOT_ANY` **works** here; base
+  proof is Catherine de Medici (COLLECTION_PLAYER_CONSTRUCTIBLES, +1 ANY slot on every building
+  that already has one) and the Heian great person.

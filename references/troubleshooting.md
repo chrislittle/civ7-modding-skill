@@ -281,3 +281,21 @@ yields-preview engine computes this effect natively (all three filter args).
 Plot-only payloads (appeal-gated tiles, two-buildings-on-one-plot) can''t be re-shaped this way -
 if one of those shows the same symptom, suspect the plot-collection family generally and test
 base Skazki mid-session to isolate engine vs mod.
+
+## Plot-adjacency requirement silently never matches in a live plot-yield modifier
+
+**Symptom (in-game, 2026-07-19):** a `COLLECTION_PLAYER_PLOT_YIELDS` + `EFFECT_PLOT_ADJUST_YIELD`
+modifier whose SubjectRequirements combine `REQUIREMENT_PLOT_HAS_CONSTRUCTIBLE` (works alone -
+proven) with `REQUIREMENT_PLOT_ADJACENT_CONSTRUCTIBLE_TYPE_MATCHES` pays NOTHING, reload included,
+with every owner-side gate satisfied. Base usage check: that adjacency requirement appears ONLY in
+requirement SETS (feat/trigger counting - where it DOES work, in-game proven) and on city
+collections - never as a plot-yield modifier subject.
+
+**Fix that works:** deliver "constructible X gains yields per adjacent constructible Y" through the
+**wildcard-adjacency activation** instead - an `Adjacency_YieldChanges` row with
+`AdjacentConstructible="BUILDING_Y"` (specific-type column, base-proven: Dai Viet,
+japan-korea-wonders; class/tag variants: `AdjacentConstructibleClass`, `AdjacentConstructibleTag`),
+a `Constructible_WildcardAdjacencies` row (`RequiresActivation="true"`, optional
+`ConstructibleClass="WONDER"` to scope who gains), activated per city via
+`EFFECT_CITY_ACTIVATE_CONSTRUCTIBLE_ADJACENCY`. In-game-proven mechanism (mountain/coast wildcard
+rules; adjacency yields land on the target constructible itself).
