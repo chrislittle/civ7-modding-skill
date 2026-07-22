@@ -520,3 +520,67 @@ Two effects add Great Work slots, and they differ on `GREATWORKSLOT_ANY`:
   `REQUIREMENT_CONSTRUCTIBLE_HAS_GREAT_WORK_SLOT`) — `GREATWORKSLOT_ANY` **works** here; base
   proof is Catherine de Medici (COLLECTION_PLAYER_CONSTRUCTIBLES, +1 ANY slot on every building
   that already has one) and the Heian great person.
+
+## REQUIREMENT_TRIUMPHS_COMPLETED placement rule (in-game matrix, 2026-07-21, twice-corrected same day)
+
+**The final law: `REQUIREMENT_TRIUMPHS_COMPLETED` NEVER evaluates true inside a live
+modifier's requirement lists — in ANY placement.** It is not "frozen at attach" (the earlier
+theory): a Tradition slotted FRESH, after its Triumph was earned and after a reload, still
+paid nothing (in-game: Concordat at 3 settlements with the Triumph complete). Reload never
+helps. The requirement only functions at **event/query time** — Legacy/feat requirement sets,
+narrative-story gates, dedication unlock checks — never as a live modifier gate.
+
+| Placement | Result |
+|---|---|
+| In-leaf on an always-attached modifier | ❌ dead (pillars died at 3 settlements) |
+| On an always-bound attach wrapper's SubjectRequirements | ❌ dead — the wrapper never attaches its payload mid-session (Temple slots, branch packages) |
+| In-leaf on a slot-attached Tradition modifier — ANY slot timing | ❌ dead (fresh-slot Concordat, re-slot + reload City Beautiful) |
+| In a Legacy/feat/story/dedication REQUIREMENT SET (event-time evaluation) | ✅ works |
+| **Not as a requirement at all — as the attach moment: payload ids in the Triumph's own `LegacyModifiers` reward carrier (`COLLECTION_OWNER` + `EFFECT_ATTACH_MODIFIERS`)** | ✅ **fires instantly at Triumph completion — the ONLY mid-session Triumph-conditioned delivery** |
+
+So the delivery recipe for "bonus gated on a count window AND a Triumph": count reqs in-leaf
+(they DO re-evaluate continuously — the proven suspend/return shape), and the Triumph
+condition expressed as attachment itself via the reward carrier (one LegacyModifiers row per
+LegacyType — base never stacks two; merge payloads). Attach-on-earn is monotonic; detach does
+not exist, so anything that must SUSPEND uses continuously-re-evaluated reqs only.
+
+**The structural-blink corollary (in-game proof, 2026-07-21): never split a CAPACITY or
+ACTIVATION effect across mutually exclusive requirement windows.** When a state change flips
+which window applies, the engine processes the old copy's OFF before the new copy's ON — a
+one-tick gap that yields tolerate but structure does not: a windowed
+`EFFECT_CITY_ADJUST_GREAT_WORK_SLOTS` handover **evicted every slotted Great Work to the
+archive** (capacity recovered; contents did not re-slot), and a deactivated
+`EFFECT_CITY_ACTIVATE_CONSTRUCTIBLE_ADJACENCY` / `EFFECT_CITY_ADJUST_ADJACENCY_FLAT_AMOUNT`
+does not re-fire. Affected family: Great Work slots, adjacency activations/flat-amounts,
+resource capacity, worker/specialist capacity, trade capacity. (Empirically, dropping resource
+capacity did NOT unassign already-assigned resources — the engine tolerates over-cap — but
+treat the whole family uniformly.) Rule: **windows are for yields; structure gets ONE copy**
+with at most a single monotone ceiling requirement (e.g. "at most N settlements") that only
+crosses in punished states. Related, pre-existing: never per-Age-node-gate static-world
+effects (appeal, unlock grants) — same blink logic at Age transitions.
+
+**Wonders cannot RECEIVE adjacency yields (in-game, 2026-07-21).** A
+`Constructible_WildcardAdjacencies` row with `ConstructibleClass="WONDER"` as the receiver
+silently does nothing — a completed Wonder adjacent to the rule's anchor showed zero, while
+the SAME activation family's building-receiver rules paid correctly in the same save (a
+Hospital next to 2 mountains collected the full stacked amount). Combined with the earlier
+law (`REQUIREMENT_PLOT_ADJACENT_CONSTRUCTIBLE_TYPE_MATCHES` never matches in live plot-yield
+subjects), there is NO working shape for "pay yields on a Wonder conditional on what it's
+next to." Working alternatives: unconditional Wonder yields via
+`EFFECT_PLAYER_ADJUST_CONSTRUCTIBLE_YIELD ConstructibleClass=WONDER` (Style Empire idiom), or
+**flip the direction — pay a BUILDING per adjacent Wonder** with an
+`Adjacency_YieldChanges` row using `AdjacentDistrict="DISTRICT_WONDER"` (base-proven
+everywhere: the Hospital/Bath/Garden `WonderFood` rule), wildcard-bound to the receiving
+building with `RequiresActivation` + `EFFECT_CITY_ACTIVATE_CONSTRUCTIBLE_ADJACENCY`.
+
+**For slottable-Tradition (card) content that must ALSO respect the Triumph gate**, the
+companion primitive is `REQUIREMENT_PLAYER_HAS_ACTIVE_TRADITION` (args: `TraditionType`, or
+`MinAmount` for a count; also `ActiveAtGoldenAge`). Base-proven to re-evaluate LIVE on an
+always-attached modifier: the metaprogression challenge
+`CHALLENGE_TUTORIAL_SLOTTED_TRADITIONS_COMPLETED` (base-standard
+metaprogression-gameeffects.xml) fires mid-session the moment the player slots their 3rd
+Tradition — an always-attached `COLLECTION_OWNER` modifier with the requirement in
+OwnerRequirements. Recipe: the card's Triumph-gated copies ride the feat's reward attach and
+carry `REQUIREMENT_PLAYER_HAS_ACTIVE_TRADITION` (their own TraditionType) + count windows
+in-leaf — pays only while slotted, immune to slot/earn ordering. (The `TraditionType`-filtered
+form's live re-evaluation is one litmus behind the `MinAmount` form — verify on first use.)

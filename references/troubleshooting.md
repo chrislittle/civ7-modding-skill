@@ -299,3 +299,23 @@ a `Constructible_WildcardAdjacencies` row (`RequiresActivation="true"`, optional
 `ConstructibleClass="WONDER"` to scope who gains), activated per city via
 `EFFECT_CITY_ACTIVATE_CONSTRUCTIBLE_ADJACENCY`. In-game-proven mechanism (mountain/coast wildcard
 rules; adjacency yields land on the target constructible itself).
+
+## Symptom: game CRASHES loading a new game after adding data rows ("Failed Validation" in Database.log)
+
+Open Database.log and look for `ERROR: Invalid Reference on <Table>.<Column> - "<ID>" does not
+exist` followed by `Failed Validation.` — that exact pair means a FOREIGN KEY in your new rows
+points at an id that is not in the CURRENT game's database, and the load dies.
+
+**The age-scoping trap (proven 2026-07-21):** the gameplay DB only contains the CURRENT age's
+module (plus base-standard and past-age content that persists). A **future age's id does not
+exist yet** — e.g. `BUILDING_MUSEUM` (Modern) is an invalid reference during an Antiquity or
+Exploration game. So a file loaded in EVERY age's action group (or an always-scope group) must
+NEVER reference age-specific ids from a later age. An Exploration start crashed on an
+`Adjacency_YieldChanges.AdjacentConstructible="BUILDING_MUSEUM"` row shipped in a shared
+per-age-loaded file.
+
+**Fix:** split such rows by age — each age's action group loads only rows referencing ids that
+exist in THAT age (its own + earlier ages' persistent content). Generator pattern: emit the rows
+into the per-age Database file, parameterized by the age's id. Corollary when writing ANY new
+row: check the referenced id's defining module/age in the constructibles catalog first — the
+XML validating and the emitted file looking right proves nothing about per-age FK validity.
