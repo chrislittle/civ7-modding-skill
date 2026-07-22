@@ -200,6 +200,17 @@ template can carry its own `<style>` block — sizes in `rem`.
 
 ### CSS gotchas inside the game UI
 
+- **⚠ `display: inline-block` does not flow horizontally** (verified in-game
+  2026-07-22): a row of inline-block spans stacked VERTICALLY over their card. The
+  base UI is flex everywhere for a reason — build any chip/pill row as
+  `display: flex; flex-wrap: wrap` with `flex: none` children.
+- **⚠ Appending an in-flow child to a `policy-base-card` stretches the ENTIRE card
+  grid** (verified in-game 2026-07-22): every card on the Policies screen ballooned,
+  including untouched ones — the grid equalizes card heights. Overlay instead: give
+  the card `position: relative` (via a data-attribute selector — class bindings are
+  reactive and get wiped, data attributes survive) and absolutely position your
+  element inside it (`bottom: 0; left: 0; right: 0; pointer-events: none`) so it
+  never participates in layout.
 - **⚠ `font-style: italic` renders text INVISIBLE** — no error, no fallback, the
   element simply shows nothing. The shipped game fonts have no italic face and the
   engine doesn't synthesize an oblique; the entire base UI (core + base-standard)
