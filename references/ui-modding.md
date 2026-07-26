@@ -589,13 +589,82 @@ the old registry. Consequences, all observed in current mods:
   `ui-next/components/production-chooser-item.js`). Mods that restyle such screens
   must ship **both** the `ui/` and `ui-next/` replacements or the mod only half-works.
 - ui-next components are compiled Solid output (`template()`, `createEffect`,
-  `insert`) — patch by file replacement, not by prototype hooks; there's no
-  `Controls.getDefinition` prototype to monkey-patch for them.
+  `insert`) — there's no `Controls.getDefinition` prototype to monkey-patch. Two patch
+  routes: **file replacement** (invasive, breaks on every game patch), or — for anything
+  that renders into a Portal — the **Portal-observer patch** below.
+- **Portal-observer patch for ui-next tooltips — ✅ VERIFIED IN-GAME 2026-07-26** (worked
+  example: wltk's Tech/Civic Progress, Workshop `3770924739`; re-implemented in a standalone
+  litmus and confirmed live: the progress/cost pill patch AND an injected content box rendered
+  in tech-tree tooltips, the civics tree, the chooser side panel, **and a MODDED custom
+  civics tree** — custom trees render the same `tree-card-v2` cards and the same ui-next
+  tooltip, so one patch covers base + custom; also proven coexisting with another mod's
+  decorator-based chips on the same cards). Bonus pattern proven in the same litmus:
+  **relocating an authored element** — a mod's own `[STYLE:]`-styled text span already
+  rendered inside the tooltip can be lifted into an injected box (`cloneNode` the text,
+  `remove()` the original), consolidating duplicate UI without touching the source mod's
+  text pipeline. Bonus engine fact from the litmus:
+  **children appended to a ui-next tooltip PERSIST** — tooltips mount once per hover and are
+  not reconciled the way tree CARDS are (where injected children get deleted and only CSS
+  `::after` survives). Placement matters though: append to the tooltip ROOT and the element
+  renders as a detached strip below the framed panel; insert BEFORE the cost row to read as a
+  native content section. Every ui-next tooltip mounts into the shared
+  portal root **`#uinext-tooltips`** via `<Portal mount={tooltipRoot}>` (see
+  `core/ui-next/components/tooltip.js`). So instead of replacing the compiled component:
+  1. `MutationObserver` on `document.getElementById('uinext-tooltips')` (childList +
+     subtree) — **never `document.body`**, which churns on every UI change in the game;
+     the portal root only mutates when a tooltip opens/closes.
+  2. On each added node, detect your target tooltip by its class
+     (e.g. `.tech-civic-tooltip`) and patch its DOM/`innerHTML` post-mount
+     (`Locale.stylize` for icon markup).
+  3. Recover the *trigger context* (which card/item the tooltip is for) via native
+     `:hover` selectors at patch time: `document.querySelector('tree-card-v2:hover')`,
+     `'.tech-item[node-id]:hover'`. ⚠ ChooserItem's activatable root renders as a plain
+     `<div>` with classes (see `core/ui-next/components/activatable.js`), NOT a custom
+     `<fxs-activatable>` tag — select by class/attribute, not tag name.
+  4. Pull live values from the JS API as needed (`player.Techs.getNodeCost(nodeId)`,
+     `Game.ProgressionTrees.getNode(player.id, nodeId).progress`).
+  ⚠ **Placing elements inside the tooltip: NEVER walk parent chains by guess — read the
+  component's template from the compiled source and anchor on its real classes.** Proven the
+  hard way (two mirrored failures in one litmus): the tooltip's visible panel is drawn by a
+  `Tooltip.Frame` CHILD of the `.tech-civic-tooltip` element, so appending to the tooltip root
+  lands OUTSIDE the frame (a detached strip below), and climbing "until parent === tooltip"
+  overshoots to the Frame itself (a detached strip above). The fix: the compiled component
+  (`base-standard/ui-next/tooltips/tech-civic-tooltip.js`) shows the frame's children are
+  [header → unlock sections → cost row `.flex.flex-row.flex-wrap`], so anchor with
+  `pill.closest('.flex-wrap')` and `insertBefore(box, row)` — inside the frame, above the cost.
+  Prefer "absent over detached": if the anchor is missing, skip the insert rather than fall
+  back to the root. (Spacing note: the LAST unlock section has no bottom margin — the game
+  spaces via the cost row's top margin, so give injected rows their gap on TOP.)
+  The same mod's legacy-stack half is a standard `Controls.decorate` on the tree detail
+  panel, with two MutationObservers (attribute filter `['progress','level',...]` on the
+  component root + childList on its cost container) **plus one immediate run in
+  `afterAttach()`** — the pill was built before the observers started, a general
+  decorate-timing gotcha. Together = the pattern for a screen straddling both stacks:
+  decorate the legacy half, portal-observe the Solid half.
 - Some services moved (e.g. `FocusManager` now at
   `'/core/ui-next/services/focus-manager.js'`). **Patches move import paths between
   game versions and silently break mods** — a moved options-screen module is a known
   cause of "my mod's options tab stopped appearing after the patch." Re-verify import
   paths against the installed `Base/modules/core/` after every game update.
+
+## Coherent CSS/layout laws (in-game proven 2026-07-26)
+
+Three things this engine's renderer eats SILENTLY — no error, just wrong layout:
+
+- **`display: grid` collapses to block.** Grid children stack full-width as if the property
+  were never set (proven: a 3-column card grid deployed as stacked rows). Multi-column layouts
+  MUST be `flex-wrap` + percentage widths on the items. Flex `column-gap`/`row-gap` ARE safe
+  (shipping UI uses them).
+- **`color: var(--x)` never paints** (the variable inherits; the color declaration collapses).
+  All colors literal; theme via classes or inline styles.
+- **`window.innerWidth` / `window.innerHeight` / `getComputedStyle(document.documentElement).fontSize`
+  ✅ WORK** — the reliable way to build screen-relative panels: measure at attach, set inline
+  pixel sizes, floor/cap in rem so the game's UI-scale setting is respected. Don't gamble on
+  `vw/vh` units.
+- **Layout law, not engine-specific but bites here:** a vertically-centered panel sized with
+  `max-height` re-centers every time its content length changes (e.g. tab switches with
+  different content = the panel visibly hops around the screen). Give it a FIXED `height` and
+  a `flex: 1` scrollable interior; short views show open space instead of moving the frame.
 
 ## Debugging UI mods
 

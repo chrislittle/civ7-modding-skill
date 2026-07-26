@@ -141,8 +141,8 @@ icon and looks off next to base cards. Base style (copy it):
 
 ## Working example
 
-`civ7_mods/mods/custom-civics-tree-litmus` — one 3-node tree (root + 2 tracks) per Age, each
-Age a different reveal route (AQ = effect via wrapper ✅ verified; EX = always-true reqset;
-MO = conditional after Political Theory), plus a depth-2 mastery on a custom node and
-tradition/slot/settlement-cap rewards. Research writeup:
-`civ7_mods/docs/CUSTOM-CIVICS-TREE-RESEARCH.md`.
+Proven via the custom-civics-tree litmus (2026-07-09) — one 3-node tree (root + 2 tracks) per
+Age, each Age a different reveal route (AQ = effect via wrapper ✅ verified; EX = always-true
+reqset; MO = conditional after Political Theory), plus a depth-2 mastery on a custom node and
+tradition/slot/settlement-cap rewards. For shipped wiring at scale, see the Ascendancy tree in
+the public metropolis-ascendant repo (github.com/chrislittle/metropolis-ascendant).

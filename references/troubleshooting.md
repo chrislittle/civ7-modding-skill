@@ -246,6 +246,30 @@ All from shipping-mod scar tissue — see [ui-modding.md](ui-modding.md) for the
    instead of synthesizing a slant (base UI uses zero italics). Remove the italic; de-emphasize
    with color/opacity/size. Verified in-game. → [ui-modding.md](ui-modding.md#css-gotchas-inside-the-game-ui)
 
+## Symptom: UI state keyed to "node finished" sticks forever after the node completes
+
+Your JS decides completion with `Game.ProgressionTrees.getNode(pid, hash).progress >= cost` —
+and it works during research, then never flips after the node finishes.
+
+**Cause (proven by FireTuner probe 2026-07-26, in-game): `node.progress` is WORKING state —
+the engine RESETS it to 0 when the node completes.** On a finished node the probe reads
+`prog=0 depth=1 cost=<real cost>`: `progress >= cost` is `0 >= cost` = false forever, so any
+"completed → hide/change UI" branch keyed on it never runs. (`Culture.getNodeCost` keeps
+returning the real cost — that part is fine.)
+
+**Fix: use `depthUnlocked` as the completion signal** — it survives completion and increments
+per depth (`>= 1` = base research done; `>= 2` = mastery done). One-line probe to check any
+node live:
+
+```js
+(()=>{const p=GameContext.localPlayerID,h=Database.makeHash('NODE_...'),n=Game.ProgressionTrees.getNode(p,h);return 'prog='+(n?.progress)+' depth='+(n?.depthUnlocked)+' cost='+(Players.get(p)?.Culture?.getNodeCost(h));})()
+```
+
+(FireTuner tip: RETURN the string — `console.log` output isn't always shown; the console
+echoes the expression's return value. And attach to the in-game UI context, or the globals
+read as undefined.) In tree-card UI you can also read the card's `unlocks-by-depth`
+attribute (`depth.isCompleted`) — display-state fed by the screen, equally reliable there.
+
 ## When you're stuck in a silent-failure loop
 
 Stop guessing and **isolate the layer**: deploy `assets/litmus-mod/` (integer version,
