@@ -211,6 +211,20 @@ template can carry its own `<style>` block — sizes in `rem`.
   reactive and get wiped, data attributes survive) and absolutely position your
   element inside it (`bottom: 0; left: 0; right: 0; pointer-events: none`) so it
   never participates in layout.
+  **1.4.2 corollary — anchor overlays in guaranteed dead space, not presumed dead
+  space** (verified in-game 2026-07-28): patch 1.4.2 rewrote the policy screens
+  (`policy-card.js`, `policies-and-traditions.js`, `government-overview.js`) as
+  compiled SolidJS components with a compact layout whose description text runs to
+  the card's bottom edge — a `bottom: 0` overlay that had sat in free space now
+  landed ON the text. The patch-proof placement: straddle the card's bottom border
+  (`bottom: -0.5rem; z-index` + near-opaque pill background) so the row hangs half
+  into the **inter-card margin** — space the layout guarantees empty no matter how
+  the card interior is re-cut. General laws: (a) base screens keep migrating to
+  compiled Solid components patch by patch — selectors often survive these rewrites
+  while interior GEOMETRY does not, so re-verify overlay placement (not just
+  selector existence) after every patch; (b) to find which of your dependency files
+  a patch actually touched, check file modification TIMESTAMPS in the install —
+  Steam only rewrites changed files, so old dates prove a file is untouched.
 - **⚠ `font-style: italic` renders text INVISIBLE** — no error, no fallback, the
   element simply shows nothing. The shipped game fonts have no italic face and the
   engine doesn't synthesize an oblique; the entire base UI (core + base-standard)
