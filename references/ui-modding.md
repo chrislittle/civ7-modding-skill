@@ -448,11 +448,27 @@ and prefers `UI.getOption` on read. Game-side gameplay option groups also exist
 - **Per-user, global**: the `modSettings` localStorage object or `UI.setOption`
   (above). Survives across games; not tied to a save.
 - **Per-game**: the `Catalog` serializer
-  (`'/core/ui/utilities/utility-serialize.js'`) — `new Catalog("MYMOD")`, then
-  `catalog.getObject("MY_ID")` gives an object with `write(key, string)`,
+  (`'/core/ui/utilities/utility-serialize.js'`) — `new Catalog({name: "MYMOD", version: 1})`, then
+  `catalog.getObject("MY_ID")` gives an object with `write(key, value)`,
   `read(key)`, `getKeys()`. Detailed Map Tacks stores all tack data this way (JSON
   strings per plot key), reloading it on `Loading.runWhenLoaded(...)`. Deletion
   quirk: write `null` **and** remove the key from the object's `childrenIDs` set.
+  ⚠ **Reworked in patch 1.4.2** (`CATALOG_FORMAT_VERSION 3`; official modder note in the
+  1.4.2 patch notes) — three rules that break pre-1.4.2 usage:
+  1. **Two modes.** Constructor without a player = **world catalog** (local-only,
+     read-immediately-after-write still works). Constructor with
+     `player: Players.get(GameContext.localPlayerID)` = **player catalog**: writes go
+     through a **player operation to the cache**, so a read immediately after a write
+     returns the OLD value — wait for the `CatalogItemCommittedEvent` window event
+     (match `event.detail.catalogId/objectId/key`) before reading back.
+  2. **Player catalogs can only be written on that player's turn** — off-turn writes are
+     silently ignored by the app ("not your turn").
+  3. **Catalogs are cleared at each Age transition** (current default; Firaxis says a
+     future release will make them persist across Ages). Don't treat a catalog as
+     cross-Age storage yet.
+  Under the hood both modes store hashed key/values in the Tutorial property store
+  (`GameTutorial.setProperty` / `player.Tutorial.setProperty`). Reference source:
+  `Reference/core/ui/utilities/utility-serialize.ts` in the Dev Tools SDK.
 - UI state that only needs the session: module-level variables.
 
 ## The JS game API surface
