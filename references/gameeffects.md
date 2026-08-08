@@ -236,6 +236,24 @@ threshold-pair idiom uses only proven primitives.
 Still copy the exact names/args from the base game — but these come up constantly for
 tall/yield mods and have non-obvious quirks:
 
+- **`EFFECT_PLAYER_GRANT_PROGRESSION` is TWO different operations, chosen by
+  `FreeProgressionType`.** The split is absolute across all 52 shipped uses:
+
+  | Family | Uses | `BoostPercentage` | What it does |
+  |---|---|---|---|
+  | `FREE_PROGRESSION_NODE_{SPECIFIC, ANY_UNLOCKED, CHEAPEST_UNLOCKED}` | 28 | **never present** | hands over the whole node |
+  | `FREE_PROGRESSION_BOOST_{SPECIFIC, ANY_UNLOCKED, CHEAPEST_UNLOCKED}` | 24 | **always present** | adds progress toward it |
+
+  `BoostPercentage` existing only on the BOOST family is the tell that these are separate
+  operations rather than one with a knob. Pick `NODE_*` for "grant a free tech"; pick
+  `BOOST_*` for a Civ VI-style Eureka. `*_SPECIFIC` additionally takes `NodeType`.
+  **A boost does NOT complete a node, even past 100%** (confirmed in play 2026-08-08 with a
+  40% boost on a 64%-researched tech): the extra progress sits there, the node reads *0 turns*,
+  and completion resolves when the turn processes — exactly like ordinary research crossing its
+  threshold. Useful corollary for UI: at the instant a grant lands, the node is **not** yet
+  flagged complete, so code that samples research state right after a grant sees the pre-completion
+  value.
+
 - **`EFFECT_CITY_ADJUST_ADJACENCY_FLAT_AMOUNT`** — boost ONE named adjacency rule. Args
   `Adjacency_YieldChange` (the rule id, e.g. `QuarterScience`, `WonderCulture`,
   `MountainCulture`, `ResourceScience`, `NaturalWonderCulture`) + `Amount` + `Divisor`.
