@@ -132,6 +132,16 @@ for b in order:
     w()
 w("## Requirements (all used) + their arguments")
 w()
+# ⛔ This file is REWRITTEN WHOLE on every run, and it is gitignored from the public skill repo
+# (it is extracted Firaxis content). Findings written here are therefore lost on the next
+# regeneration AND never publish - which is exactly what happened on 2026-08-08 to two blocks of
+# in-play results. The pointer below is emitted every run so the next person notices before typing.
+w("> **⛔ THIS FILE IS GENERATED AND GITIGNORED. Do not write findings here — they are destroyed on")
+w("> the next run of `tools/gen-effects-catalog.py` and never reach the public repo.** Usage counts")
+w("> are the value this file adds; the *behaviour* of a requirement belongs in the hand-maintained")
+w("> [gameeffects.md](gameeffects.md) (\"Rules learned in play\") or")
+w("> [troubleshooting.md](troubleshooting.md).")
+w()
 for r in sorted(req_count, key=lambda x:(-req_count[x],x)):
     args=req_args[r]
     argstr=", ".join(f"{a}({n})" for a,n in args.most_common()) if args else "—"

@@ -184,6 +184,10 @@ against `IconDefinitions`. Two independent gotchas, both giving a **blank/black 
 - **A custom unit with NO advisories/biases/operations is effectively invisible to the AI** — it won't
   prioritize/spam it and can't drive its special ability. Handy: an ungated player utility with no AI hooks
   is not a wide-AI exploit (only a human uses it). Conversely, if you *want* AI use, you must add the hooks.
+- A third AI table exists beyond advisories/biases: **`AIUnitPrioritizedActions`** (found in the shipped
+  Prospector chain during benchmark verification) — it maps a unit to the actions the AI should
+  prioritize with it. If you port a chargeable ability and want the AI to actually *use* the charge,
+  mirror the base unit's row here too, not just its advisories.
 
 ## Load-order recap for a unit + its icon/visual/binding
 

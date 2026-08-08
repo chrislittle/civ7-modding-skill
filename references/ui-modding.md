@@ -82,9 +82,37 @@ declares soft ordering without a hard dependency.
 `fs://game/<mod-id>/<relative-path>` — this is the canonical form for
 `Controls.define` content/styles, `Controls.loadStyle`, and cross-file imports
 (`import { x } from 'fs://game/drongos-top-panel/ui/settings/settings.js'`).
+Root-absolute imports **without** the `fs://` prefix also work —
+`import { x } from '/drongos-wonder-screen/code/model.js'` — and `UIScripts`
+registration alone makes a module resolvable this way (no `ImportFiles` entry
+needed; Drongo's colour booster has zero ImportFiles yet its scripts import each
+other). Note the path segment is the **`<Mod id>`, not the folder name** — they can
+differ (sloth-global-relations-panel's folder is `global-relations-panel`).
+**✅ An `<img src="fs://game/<mod-id>/path/file.png">` in markup you inject RENDERS** — verified
+in-game 2026-08-06 with a 512×512 transparent PNG in a mod's own dashboard header, given an
+`ImportFiles` row for that file. Worth stating because there was no precedent to copy: the base
+game's UI contains exactly ONE `<img src="fs://…">` and it names a built-in asset by bare name
+(`fs://game/popup_icon_glow`), while mods' own PNG references are typically icon-definition
+`<Path>` rows rather than img tags. **No extensionless twin is needed for this** — that trick is
+for the unit-icon/`UpdateIcons` route. This matters because it is the practical way to ship
+artwork that inline SVG cannot reproduce: **the base UI uses no SVG gradients or filters
+anywhere** (the only matches in `Base/modules` are element names inside the Solid.js vendor
+bundle), so any emblem whose depth comes from `linearGradient`/`radialGradient`/`feGaussianBlur`
+should be rendered to PNG and imported rather than inlined.
+
 ImportFiles-mounted assets are also reachable at the VFS root (`fs://game/logo.png`)
-and, when shadowing, under the base module's path. In JS `import` statements, base
-modules are absolute-rooted: `'/core/ui/...'`, `'/base-standard/ui/...'`.
+and, when shadowing, under the base module's path. (⚠ Unverified anomaly, litmus
+pending: two shipping mods address their own ImportFiles-mounted files under a
+*foreign* module prefix — `fs://game/base-standard/ui/<their-file>` — and appear to
+work, suggesting the module segment is not authoritative for mounted files. Don't
+rely on it either way yet.) In JS `import` statements, base
+modules are absolute-rooted: `'/core/ui/...'`, `'/base-standard/ui/...'`. When a
+shadow-replaced file uses *relative* imports, they resolve into YOUR mod's overlay —
+which is why replacement mods dual-list helper JS in both `UIScripts` and
+`ImportFiles` (the copy must exist at the relative path the replaced file expects).
+⚠ Never ship an unmodified base file just to satisfy such an import: it freezes that
+whole file at the current patch (Drongo's leader ribbons shipped a verbatim
+`model-diplo-ribbon.js` that silently pinned 50 KB of base logic two patches back).
 
 UI-only mods set `<AffectsSavedGames>0</AffectsSavedGames>` so they can be
 added/removed mid-campaign. `<EnabledByDefault>1</EnabledByDefault>` and
@@ -115,17 +143,32 @@ export class MyDecorator {
 Controls.decorate('panel-sub-system-dock', (c) => new MyDecorator(c));
 ```
 
-All four methods must exist (even empty). Decorators from multiple mods coexist on
-the same component — this is why it's the preferred technique. Useful decoration
+All four methods must exist (even empty); a fifth, `onAttributeChanged(name, prev,
+next)`, is optional and fires on observed-attribute changes (used by Drongo's mod
+manager). Decorators from multiple mods coexist on the same component — this is why
+it's the preferred technique. Useful decoration
 targets seen in the wild:
 
 - `'panel-sub-system-dock'` — the right-side HUD dock. The component has a real API:
   `panel.addButton({ tooltip, modifierClass, callback, class, audio, focusedAudio })`.
   This is THE way to give a custom screen an entry point.
+  ⚠ `addButton` ALWAYS appends at the row's end — it takes NO position field (an `index`
+  property in buttonData is silently ignored). To insert at a position, use the panel's
+  other method `addRingButton(buttonData, index)` (index = second PARAMETER): it wraps the
+  button in an `fxs-ring-meter` + inserts before `buttonContainer.childNodes[index]`, and
+  is what the base uses for the big-tier age/tech/culture rings (row order: age 0, tech 1,
+  culture 2 — so index 3 = "right after the civic ring", big-tier sized via a big
+  modifierClass like `civic`). Its return is `{button, ring, turnCounter}`; the
+  turn-counter chip renders (empty) under a custom ring too. (Proven in-game, E&I 2026-08.)
 - `'panel-mini-map'` — `component.miniMapButtonRow.appendChild(...)` to add minimap
   buttons.
 - `'lens-panel'` — `component.createLayerCheckbox("LOC_MY_LAYER", "my-layer-id")` to
-  add a lens-layer toggle to the minimap's lens panel.
+  add a lens-layer toggle to the minimap's lens panel, and
+  `component.createLensButton("LOC_MY_LENS", "my-lens-id", "lens-group")` to register
+  a whole custom **lens** as a radio button mutually exclusive with the base lenses
+  (base API, `panel-mini-map.js` — how discovery-lens and Drongo's adjacency lens
+  surface theirs; the base game registers ~11 lenses this way, not the 3 this doc
+  previously implied).
 - `'screen-options'` / options screens — see mod options below.
 
 ### 2. Prototype / instance monkey-patching
@@ -145,7 +188,29 @@ proto.updateValueText = function (...args) {
 
 Variants observed working:
 - **Singleton patch** — managers exported as instances are patched directly:
-  `HotkeyManager.handleInput = function(...) {...}` (keep+call the original).
+  `HotkeyManager.handleInput = function(...) {...}` (keep+call the original). The
+  sturdier form goes through the prototype — `Object.getPrototypeOf(ExportedInstance)`
+  — so the patch survives instance re-creation (izica patches `DiploRibbonData` this
+  way, then calls `DiploRibbonData.updateAll()` to force a re-render).
+- **Exported-class patch** — when a base module exports its class, import it and
+  patch the prototype directly, no registry needed:
+  `import { PanelYieldBanner } from '/base-standard/ui/diplo-ribbon/panel-yield-banner.js';
+  PanelYieldBanner.prototype.render = function(){...}` (Drongo's top panel, ETFI).
+- **Prototype-from-a-live-instance (the beezany composite)** — inside a
+  `Controls.decorate` decorator, `Object.getPrototypeOf(component)` reaches classes
+  with no registry entry and no export. Three required pieces: a `static` field as a
+  patch-once guard (decorators run per instance), a back-reference
+  (`component.bzComponent = this`) so the patched base method can call decorator
+  state, and `after_rv ?? orig_rv` return chaining. Gives real "afterRender" hooks.
+- **⚠ Re-bind stale listeners.** Base components often capture
+  `this.method.bind(this)` in their constructor — a later prototype patch does NOT
+  reach the already-registered bound copy. After patching, re-bind:
+  `component.updateXListener = component.update.bind(component)` (bz mods do this in
+  three places; forgetting it is a silent no-op patch).
+- **Template replacement from a decorator** — `component.getContent = () => newHtml`
+  replaces a base screen's entire markup with no file shadowing (Drongo's mod
+  manager rebuilds the Add-Ons screen this way) — a rung between decorate and
+  whole-file replacement.
 - **Registered-object patch** — a lens layer already registered can be fetched and
   its methods replaced: `LensManager.layers.get('fxs-worker-yields-layer').updateSpecialistPlot = function (info) {...}` (JNR's whole mod is this one patch).
 - **Import the base module first** so the thing you patch is guaranteed registered:
@@ -162,6 +227,21 @@ two mods replacing the same file = last-load-order wins, the other mod breaks
 silently; and every game patch that touches the original silently diverges from your
 copy. The big UI overhaul mods accept this cost. If you replace a file other mods
 commonly patch (production chooser, diplo ribbon…), expect conflict reports.
+
+**A registry alternative to file replacement (legacy stack, verified in
+`core/ui/component-support.js` 2026-07-31):** `ComponentManager.define()` — the thing
+behind `Controls.define` — keeps whichever registration for a tag name has the
+highest `priority` (ties → later registration wins), and only the winner reaches
+`customElements.define()`. So a UIScript loaded after core can re-register a base
+tag with a modified class via
+`Controls.define("some-base-tag", { createInstance: MyPatchedClass, ..., priority: 1 })`
+and deterministically own the component — no ImportFiles shadow, no path collision.
+Same coexistence caveat as file replacement (you own the whole component; other
+mods' decorators still apply, but a second priority-redefiner fights you), and the
+same patch-rot risk if you copied the base class. Prefer decorate; use this over
+file replacement when you must change a class the registry owns. (This is the
+legacy-stack sibling of ui-next's `ComponentRegistry.register` `overridePriority`,
+documented in the ui-next section.)
 
 ## Custom screens and panels
 
@@ -373,8 +453,28 @@ Three pieces, two scopes:
      <Row ActionId="open-my-panel" Index="0" GestureType="KBMouse" GestureData="KEY_F2"/>
    </InputActionDefaultGestures>
    ```
-   This also makes the binding appear (and be remappable) in the game's key-binding
-   options. Localize the `LOC_*` names in both scopes.
+   `InputContextConstraints` is optional — shipping mods register working hotkeys
+   with just `InputActions` + `InputActionDefaultGestures` and gate in JS via
+   `InterfaceMode.allowsHotKeys()` instead. Other row facts from shipping mods:
+   `<Replace>` works as the row verb, one action can carry several gestures via
+   `Index="0"/"1"` (key + numpad twin), modifiers use
+   `GestureData="KEY_SHIFT+KEY_B"`, and `ContextId="Dual"` exists alongside
+   `World`/`Unit`. Localize the `LOC_*` names in both scopes.
+   ⚠ **CORRECTED 2026-07-29 (refined 2026-07-30): these rows do NOT make the binding
+   appear in the game's key-binding options screen.** The editor
+   (`core/ui/options/editors/editor-keyboard-mapping.js`) builds its row list from a
+   hardcoded action set and never reads the `InputActions` table. Fix: decorate the
+   editor — `Controls.decorate('editor-keyboard-mapping', ...)` — and add your row in
+   the decorator's **`beforeAttach()`**: look up
+   `Input.getActionIdByName("my-action-id")`, skip if
+   `component.mappingDataMap.has(actionId)`, else
+   `component.actionContainer.appendChild(component.createActionEntry(actionId,
+   inputContext))`. Ship the decorator in BOTH the shell-scope group (with the input
+   rows) and a game-scope group (the options screen opens from both contexts).
+   Detailed Map Tacks ships exactly this. (Do not look for an
+   `afterAddActionsForContext` hook — that name is bz-map-trix's own private helper
+   inside a heavier prototype-patch variant, not a Firaxis API.) Without this, the
+   hotkey works but is invisible and un-remappable in options.
 2. **Game-scope interception.** Two working styles:
    - Patch `HotkeyManager.handleInput` (keep the original; on
      `InputActionStatuses.FINISH` + your action name, call
@@ -483,6 +583,23 @@ and prefers `UI.getOption` on read. Game-side gameplay option groups also exist
   Under the hood both modes store hashed key/values in the Tutorial property store
   (`GameTutorial.setProperty` / `player.Tutorial.setProperty`). Reference source:
   `Reference/core/ui/utilities/utility-serialize.ts` in the Dev Tools SDK.
+  **The shipping escape hatch (post-1.4.2):** Detailed Map Tacks now VENDORS the
+  pre-1.4.2 serializer (a copy of quest-tracker's `SerialBase` built directly on
+  `GameTutorial.setProperty`) instead of importing `Catalog` — restoring synchronous
+  read-after-write with no turn or Age restrictions. If the new Catalog rules break
+  your use case, that's the community answer.
+  **The hash scheme is also the cross-mod read channel**: keys are
+  `Database.makeHash("_<scope>_<id>_<key>")` with a `"KEYS"` row as the object's
+  index (comma-separated key list). Drongo's city planner reads Detailed Map Tacks'
+  entire tack store this way — no API, no dependency:
+  `GameTutorial.getProperty(hash("DMT_OBJ","MAP_TACK","KEYS"))`, then per-key reads.
+- **Per-user, via the save system** (4th backend): Drongo's mod manager stores
+  mod-set profiles as `SaveFileTypes.GAME_CONFIGURATION` files
+  (`SaveLocations.LOCAL_STORAGE` + `SaveTypes.WORLDBUILDER_MAP`), written with
+  `Network.saveGame({...})`, enumerated via `SaveLoadData.querySaveGameList(...)`
+  (async — listen for the `'model-save-load-query-done'` window event, read
+  `event.detail.fileList`), deleted with `Network.deleteGame`. Save entries even
+  expose `enabledMods`. Heavyweight but survives everything and is user-visible.
 - UI state that only needs the session: module-level variables.
 
 ## The JS game API surface
@@ -619,9 +736,28 @@ the old registry. Consequences, all observed in current mods:
   `ui-next/components/production-chooser-item.js`). Mods that restyle such screens
   must ship **both** the `ui/` and `ui-next/` replacements or the mod only half-works.
 - ui-next components are compiled Solid output (`template()`, `createEffect`,
-  `insert`) — there's no `Controls.getDefinition` prototype to monkey-patch. Two patch
-  routes: **file replacement** (invasive, breaks on every game patch), or — for anything
-  that renders into a Portal — the **Portal-observer patch** below.
+  `insert`) — there's no `Controls.getDefinition` prototype to monkey-patch. **Four**
+  patch routes (revised 2026-07-29; this doc previously claimed only the first two):
+  1. **File replacement** (invasive, breaks on every game patch — see the staleness
+     warning below).
+  2. **Portal-observer patch** for anything that renders into a Portal — below.
+  3. **`ComponentRegistry.register` — the clean official override.** ui-next
+     components live in a registry (`core/ui-next/services/component-registry.js`)
+     that takes `{name, createInstance, styles, images, overridePriority}`. Verified
+     from the registry source: at equal priority the FIRST registration wins — so a
+     UIScript loaded with `loadOrder="-1"` (attribute form, negative values legal)
+     registers before the base module's lazy import and owns the component
+     (unlock_all_mementos re-registers `memento-select` this way, via UIScripts, NOT
+     a file shadow). Cleaner still: pass `overridePriority: 1` and win regardless of
+     load order. `ComponentRegistry.get(name)` returns the mutable wrapper (its
+     `.factory` can be swapped live). A sibling `ModelRegistry` in the same directory
+     has the same `overridePriority` mechanism for models.
+  4. **Thin-shell fork + own Solid modules** — replace the base ui-next file with a
+     minimal shell and put your additions in hand-written compiled-Solid modules
+     loaded as UIScripts, imported by mod-rooted absolute path (bz-map-trix's plot
+     tooltip). Keeps the diff-against-base small when the game patches.
+     `defineLegacyComponent` also works as a *mod* technique for exposing your own
+     Solid component to legacy markup (City Hall's production-chooser item).
 - **Portal-observer patch for ui-next tooltips — ✅ VERIFIED IN-GAME 2026-07-26** (worked
   example: wltk's Tech/Civic Progress, Workshop `3770924739`; re-implemented in a standalone
   litmus and confirmed live: the progress/cost pill patch AND an injected content box rendered
@@ -633,9 +769,13 @@ the old registry. Consequences, all observed in current mods:
   rendered inside the tooltip can be lifted into an injected box (`cloneNode` the text,
   `remove()` the original), consolidating duplicate UI without touching the source mod's
   text pipeline. Bonus engine fact from the litmus:
-  **children appended to a ui-next tooltip PERSIST** — tooltips mount once per hover and are
-  not reconciled the way tree CARDS are (where injected children get deleted and only CSS
-  `::after` survives). Placement matters though: append to the tooltip ROOT and the element
+  **children appended to a ui-next tooltip PERSIST** — the tooltip DOM is REUSED across
+  hovers rather than remounted (refined 2026-07-29: Policy Yield Previews tracks which
+  node its injection was for — `dataset.lfYieldsForNode` — and re-injects when the
+  hovered node changes while the tooltip element survives; so persist ≠ fresh: key your
+  injection on the hovered item and refresh it, or you'll show the previous item's
+  data). Injected children are not reconciled away the way tree CARDS are (where
+  injected children get deleted and only CSS `::after` survives). Placement matters though: append to the tooltip ROOT and the element
   renders as a detached strip below the framed panel; insert BEFORE the cost row to read as a
   native content section. Every ui-next tooltip mounts into the shared
   portal root **`#uinext-tooltips`** via `<Portal mount={tooltipRoot}>` (see
@@ -679,18 +819,54 @@ the old registry. Consequences, all observed in current mods:
 
 ## Coherent CSS/layout laws (in-game proven 2026-07-26)
 
-Three things this engine's renderer eats SILENTLY — no error, just wrong layout:
+Things this engine's renderer eats SILENTLY — no error, just wrong layout:
 
+- **⛔ Name the game's OWN font families — a system font silently falls back.** Coherent ships only
+  the faces in `Base/modules/core/fonts`, declared as **`TitleFont`** (display) and **`BodyFont`**
+  (text), each with `-SC`/`-TC`/`-JP`/`-KR` locale variants that the UI joins into one stack — see
+  `core/ui/themes/default/global-scaling.js`. So `font-family: Georgia, serif` renders as the
+  default sans in-game while looking perfect in a desktop-browser preview; write
+  `font-family: TitleFont, <system fallback>` instead, putting the system name last purely for
+  offline previewing. This bites hardest when styling a wordmark or heading to match external art.
+- **⛔ `font-weight` must be 400 or 700 — an intermediate weight renders the text INVISIBLE.**
+  Proven in-game 2026-08-06: `font-weight:600` on a section header drew *nothing at all* — the
+  text was in the DOM, the element's border and padding rendered, and a `font-weight:400` pill
+  inside the same header drew normally, but the label itself was blank. The UI font ships regular
+  and bold only and **Coherent does not synthesise the weights between them** — it draws empty
+  rather than falling back to the nearest face. `700` and `bold` are safe (shipping UI uses them);
+  `500`, `600` and any other numeric weight are not. Carry emphasis with size, colour and
+  `text-transform` instead. This one is nastier than a layout bug because the text simply is not
+  there — it reads as a data failure, not a styling one, and sends you hunting the wrong thing.
 - **`display: grid` collapses to block.** Grid children stack full-width as if the property
   were never set (proven: a 3-column card grid deployed as stacked rows). Multi-column layouts
   MUST be `flex-wrap` + percentage widths on the items. Flex `column-gap`/`row-gap` ARE safe
-  (shipping UI uses them).
-- **`color: var(--x)` never paints** (the variable inherits; the color declaration collapses).
-  All colors literal; theme via classes or inline styles.
+  (shipping UI uses them). ⚠ Under re-verification (2026-07-29): three shipping Workshop mods
+  (Drongo's mod manager, city planner, cheat panel) use `display: grid` in their markup/CSS —
+  either it works in some contexts or their layouts silently degrade; litmus pending. Until
+  then, keep using flex-wrap.
+- **`color: var(--x)` never paints — but the law is SPECIFIC to `color:` (narrowed
+  2026-07-29).** Confirmed working in shipping mods: `background-color: var(--x)` (Drongo's
+  top panel themes its whole pill scheme this way, per-class and per-`:hover` overrides of one
+  custom property), `var()` in lengths and `calc()` (`width: calc(1.66rem + (var(--n,2) *
+  0.54rem))`), and `filter: fxs-color-tint(var(--x))` (base-game idiom, 33 uses in Base CSS).
+  For text color specifically: literal colors or inline styles, as before.
+- **`filter: fxs-color-tint(<color>)` recolors any element with a `blp:` background** —
+  the engine's own CSS recolor function (base uses it in diplo-ribbon, age-scores,
+  advisor screens). The full recipe for tinting game art to an arbitrary color:
+  `filter: grayscale(1) brightness(1.5) fxs-color-tint(#b5afa9);` (bz-ready-or-not's
+  ring meter). Siblings: `fxs-background-image-tint` (set via `style.setProperty`),
+  and standard `drop-shadow`/`sepia`/`saturate`/`contrast` filters work — including on
+  `html, body` for whole-UI grading (Drongo's colour booster). CSS masks work too:
+  `mask-image: url("blp:mask_hex_icon_64px.png")` + `mask-size/position` hex-clips a
+  portrait. `@media (experience: mobile)` is a real Coherent media feature.
 - **`window.innerWidth` / `window.innerHeight` / `getComputedStyle(document.documentElement).fontSize`
   ✅ WORK** — the reliable way to build screen-relative panels: measure at attach, set inline
   pixel sizes, floor/cap in rem so the game's UI-scale setting is respected. Don't gamble on
   `vw/vh` units.
+- **Auto flex margins (`margin-left: auto` on a flex child) don't push — the child stays in
+  place** (proven 2026-08-01: a header close button styled `margin-left:auto` rendered mid-row).
+  Push flex children apart with `flex-grow: 1` on the element that should absorb the space
+  (base UI's own idiom), or an explicit spacer div.
 - **Layout law, not engine-specific but bites here:** a vertically-centered panel sized with
   `max-height` re-centers every time its content length changes (e.g. tab switches with
   different content = the panel visibly hops around the screen). Give it a FIXED `height` and
@@ -826,6 +1002,30 @@ Worked example: a custom per-node "boost earned" glow. Hard-won specifics that d
   player object exposes `getProperty` too). This is the clean way to surface "did my modded thing fire"
   to the UI when node data has no field for it (e.g. Civ7 commingles boost + research progress with no
   boost flag).
+- **⚠ EDGE-HUGGING OVERLAYS ON TREE CARDS ARE UNIMPLEMENTABLE (3 field failures, E&I 2026-08-01).**
+  The card's drawn artwork is INSET inside every layout box by margins you cannot read — the
+  `tree-card-v2` host, `.tree-card-hitbox` (padded input area), and `.tree-card-name-unlocks` are all
+  WIDER/TALLER than the visible bar art, so any pseudo-element pinned to a box edge (`right:0`,
+  `top:0/bottom:0` — e.g. an "end-cap" band or full-width underline) renders as a floating stray line
+  in the gutter. What DOES align: (a) chips INSET from the edge (`top:50%; right:16px;
+  translateY(-50%)` on the hitbox — MA's shipping pill; caveat: crowded 6-icon unlock rows reach the
+  right edge and collide), and (b) effects on elements whose box IS their artwork — `.tree-node-icon`
+  (the circular node portrait: its background image fills its box) takes `border-radius:50%` +
+  `box-shadow` rings/glows with perfect registration, and `.tree-card-name` takes color tints.
+  Design card indicators from (a)/(b) only; never promise edge-registered geometry.
+- **Mastery-II rows are SEPARATE `tree-card-v2` elements with the SAME node-type hash** (class
+  `tree-card--mastery`; the main card has `parent-node`). Any per-node decoration matched via
+  `tree-card-v2[type]` hits both — filter mastery cards out or your marks appear twice.
+- **✅ SHIPPED RECIPE — name-anchored CSS glyph (E&I 2026-08-01, Chris-approved).** To mark a card
+  right after its title text: `.tree-card-name` is `flex-initial` (content-width), so a pseudo-element
+  at `left:100%` + margin sits just past the last letter and follows the name's length. The name has
+  Tailwind `truncate` (overflow:hidden) which would clip it — override `overflow:visible` +
+  `position:relative` on decorated cards. A legible mini-LIGHTBULB needs no image (images injected
+  into tree cards are wiped anyway): `::after` 12px circle + 2px border = the glass, and the base is
+  an offset shrunk box-shadow puck (`0 8px 0 -4px <color>`); add a soft outer glow shadow when "lit".
+  Color language that read instantly in play: default warm gold = "a boost exists here", switch to
+  the mod's accent color + glow = earned. State classes go on `.tree-card-hitbox`, reapplied on a
+  ~400ms scan (classes get reset by redraws).
 
 ## Colors: leaders, player-color CSS, plot tinting, tree icons
 
@@ -870,9 +1070,12 @@ element. This is how to make a mod panel/badge match the active player's colors.
   (returns the variants **object** above, cached — use it to read `mainColor`/
   `isPrimaryLighter` yourself), `isPrimaryColorLighter(playerId)`, and the color
   converters `HexToFloat4 / ObjectToRgbaString / RGBAToString / numberHexToStringRGB`.
-  (`UI.Player.get{Primary,Secondary}ColorValueAsString` — a plausible-looking direct
-  API — did **not** resolve in a custom `Panel` context; use the `UI.Color`/utilities
-  route.)
+  (`UI.Player.get{Primary,Secondary}ColorValueAsString` — narrowed 2026-07-29: this
+  API **does work** in shipping mods (Drongo's Wonder Screen calls it in a JS model,
+  Relationship Preview in a decorator); our 2026-07-14 failure in a custom `Panel`
+  context was context- or timing-specific, not a missing API. There is also
+  `getPrimaryColorValueAsHex(pid)` returning `0xAABBGGRR` ints for overlay colors.
+  The utilities route below remains the belt-and-suspenders choice.)
 - **⚠⚠ `color: var(--x)` IS IGNORED in this Coherent build (the big one — e.g. a custom dashboard,
   2026-07-14, ~10 debug rounds).** A custom property set on an element *does* inherit to
   descendants (confirmed: `getComputedStyle(child).getPropertyValue('--x')` returns the

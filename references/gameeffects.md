@@ -86,7 +86,95 @@ nothing to iterate — see the attach-wrapper rule below.
 ## Requirements
 
 Requirements filter the collection per object. Like effects, **requirement types and
-their argument names are not guessable** — grep a real usage. Useful ones:
+their argument names are not guessable** — grep a real usage.
+
+### Rules learned in play — every one of these fails SILENTLY
+
+> **⛔ THE OR-SET SIZE CAP.** The installed game ships **38 `REQUIREMENTSET_TEST_ANY` blocks and the
+> largest holds FOUR requirements** (re-count before exceeding it; DLC may move the number). A 53-row
+> OR-set fired nothing through **two** different shapes — first a named set reached by
+> `REQUIREMENT_REQUIREMENTSET_IS_MET`, then the same rows inline under
+> `<SubjectRequirements type="REQUIREMENTSET_TEST_ANY">`. No log line, no error; the marker stayed 0
+> while a FireTuner probe showed the condition plainly true.
+> The attribute itself is fine — the base game sets `type=` on an inline requirements block 30 times
+> (22 `TEST_ANY` on `SubjectRequirements`, 8 `TEST_ALL`). **Size is the fault, not shape.**
+> **What to do instead:** one modifier per alternative, every one writing the SAME property key.
+> `run-once` means the key is set once so they cannot double-pay — *provided a player can only ever
+> satisfy one*. Where two alternatives ARE simultaneously reachable, keep those two together in one
+> modifier's 2-row `TEST_ANY`. Split 53 into 47 markers that way and it fired first try (2026-08-08).
+
+> **⚠ A REQUIREMENT WITH ONE SHIPPED USE IS UNPROVEN — and that one use tells you what it is FOR.**
+> Rarity alone is not the danger; rarity plus a *misread purpose* is. Two silent never-fires in one
+> day traced to it:
+> - `REQUIREMENT_PLAYER_AT_PEACE_X_TURNS_AGO` (1 use) reads like "you have held peace for X turns".
+>   Its single use pairs it with `GOSSIP_MAKE_DOW01` — it is a **betrayal check** ("you had peace ten
+>   turns ago *and have since declared war*"), so a player who never went to war may never satisfy it.
+>   Three attempts were lost before anyone read the neighbouring rows. Replaced with
+>   `REQUIREMENT_GAME_TURN_IS_X_NARRATIVE` (102 uses), which fired immediately.
+> - `GOSSIP_UNIT_PROMOTION01` (1 use) — a commendation deed built on it never fired.
+>
+> Before building on a low-count identifier, **open its shipped use and read the requirements around
+> it.** The neighbours are the documentation. Usage counts are in the generated catalog.
+
+> **⚠ A COUNT REQUIREMENT THAT NAMES ONE TYPE DOES NOT SUM ACROSS TWO.**
+> `REQUIREMENT_PLAYER_HAS_X_TOWNS_PRODUCING_PROJECT` names a single `ProjectType` — all four shipped
+> uses do. Two markers asking for "5 Farming **or** 5 Fishing Towns" give **max(), never the total**:
+> an empire holding 2 of each reads 2. To count a UNION, count the objects instead —
+> `REQUIREMENT_COLLECTION_COUNT_ATLEAST` over `COLLECTION_PLAYER_CITIES` against a `TEST_ANY` set of
+> `REQUIREMENT_CITY_HAS_PROJECT` rows (base-proven on `PROJECT_TOWN_GRANARY`/`PROJECT_TOWN_FISHING`).
+> Bonus: a town with **no** focus matches neither branch, so it cannot be miscounted.
+
+> **⚠ SOME REQUIREMENTS ONLY HONOUR A NUMBER THE BASE GAME PASSES.**
+> `REQUIREMENT_PLAYER_PLOTS_REVEALED_ARE_X` stayed dark at 93.3% **and** at 99.71%, and fired at 100
+> — the only percentage either of its two base uses passes (the denominator is every plot, ocean
+> included). If a count-style requirement will not fire, try the shipped number before concluding the
+> mechanism is broken.
+
+> **⚠ TEST THE NEGATIVE CASE — an ignored argument reads as success.**
+> `REQUIREMENT_PLAYER_HAS_X_WAR_SUPPORT` with a bare `Amount` reads *your own* support in isolation,
+> not the contest: it paid out while the player was 2 **behind**. `MoreThanOpponent="True"` is what
+> makes it a comparison. Do the thing that should NOT satisfy the gate and confirm it stays dark —
+> that is how `WarType=FORMAL_WAR` was confirmed to discriminate (a Surprise War left the marker dark,
+> a Formal War lit it).
+
+> **✅ LITMUS-PROVEN 2026-08-02 — the two "founded this Age" requirements.** Both were run live
+> in an Exploration **advanced start** (`eni-walls-litmus`, three gold probes at 10k/30k/90k):
+> - `REQUIREMENT_CITY_HAS_ONLY_BUILDINGS_FROM_THIS_AGE` **works, and is strict about the
+>   building's `Age` FIELD, not when it was placed.** Advanced-start settlements FAIL it (they
+>   arrive holding Antiquity-age buildings); a town founded during the Age and then promoted to a
+>   City PASSES it. So paired with `REQUIREMENT_CITY_IS_CITY` it is a sound "this settlement was
+>   founded this Age" test. Corollary worth knowing before you fear a grant breaks it: the
+>   Exploration advanced-start card `CARD_GRANT_WALLS` pushes `BUILDING_ANCIENT_WALLS`
+>   (`Age="AGE_ANTIQUITY"`) into every City *and Town* you hold — but only those existing when the
+>   card fires, and Ancient Walls are `Purchasable="false"` and unbuildable in a later Age, so a
+>   settlement founded after turn 1 can never acquire one. Granted Antiquity buildings can only
+>   disqualify settlements that were already disqualified.
+> - **"N settlements each having a building WITH an assigned Specialist" works** (proven in-game
+>   2026-08-02): `REQUIREMENT_COLLECTION_COUNT_ATLEAST` over `COLLECTION_PLAYER_PLOT_YIELDS` with a
+>   sub-`RequirementSet` of `REQUIREMENT_PLOT_HAS_CONSTRUCTIBLE` + `REQUIREMENT_PLOT_HAS_X_WORKER_POPULATION`
+>   (`MinWorkerPopulation=1`). Because the plot collection is empire-wide and the building is
+>   one-per-settlement, `Count=3` reads as "in 3 settlements". `PLOT_HAS_X_WORKER_POPULATION` is the
+>   way to detect an assigned Specialist on a tile.
+> - `REQUIREMENT_PLAYER_HAS_AT_LEAST_NUM_BUILDINGS` **counts buildings in TOWNS as well as cities**
+>   by default — proven in-game 2026-08-02 with 3 Temples across 1 city + 2 towns. The vocabulary
+>   backs this up: the argument list carries a `CityOnly` flag (used exactly once in the entire base
+>   game), which only makes sense if towns are otherwise included. Word deeds as "in N settlements",
+>   and reach for `CityOnly` when you genuinely mean cities.
+> - `REQUIREMENT_PLAYER_HAS_FOUNDED_X_CITIES` is **Age-scoped and counts TOWNS**. It stayed dark
+>   through turn 1 of an advanced start (so it does NOT count settlements you begin the Age with —
+>   it is carry-safe) and fired the moment a Settler founded one town, with no `OnlyTowns` flag
+>   set. Read the name as "settlements founded", not "city-status settlements"; use the
+>   `OnlyTowns` argument only to *exclude* cities.
+
+> **⚠ Two argument readings confirmed in play (2026-08-08), both previously inferred.**
+> - `REQUIREMENT_PLAYER_HAS_X_WARS`: `AllMajors` selects **who counts**, not "all of them" —
+>   `Amount=2` + `AllMajors` fires on two simultaneous major wars.
+> - `REQUIREMENT_GAME_TURN_IS_X_NARRATIVE`: `AfterTurn` counts turns **since the Age began**, not
+>   absolute game turn (values are small in every Age — 1–5 typically, 20 once in Modern, 25 in
+>   Antiquity). That is what makes it usable in content that must work both from an advanced start at
+>   turn ~1 and from a full campaign reaching the same Age at turn ~200.
+
+Useful requirements:
 
 - `REQUIREMENT_CITY_POPULATION` — args `MinUrbanPopulation` / `MinTotalPopulation`.
 - `REQUIREMENT_CITY_IS_CITY` / `REQUIREMENT_CITY_IS_TOWN` — settlement type.
@@ -292,6 +380,14 @@ look for a moddable cutoff), stated verbatim in the **Civilopedia**:
   - `UseAppealHappinessThreshold="true"` = **Charming (3+)** — the +1-Happiness tier.
   - `UseAppealDoubleHappinessThreshold="true"` = **Breathtaking (5+)** — the +2 ("double") tier.
     (That's the literal origin of the "double happiness" name.)
+- **⛔ APPEAL IS A RURAL-ONLY PROPERTY — urbanizing a tile DESTROYS it.** Verified in-game
+  2026-08-06: a Breathtaking tile had a City Park built on it and the plot tooltip afterwards
+  showed **no Appeal line at all**, not a reduced one. So `REQUIREMENT_PLOT_HAS_APPEAL` can never
+  be true on an urban plot, and **any deed/bonus of the form "put building X on an Appealing
+  tile" is impossible, not merely hard** — the act of building removes the condition it tests.
+  This also explains why every shipped Appeal payout is a rural-tile yield: it is a rule, not a
+  design preference. Design accordingly — Appeal can reward a rural tile, or gate something
+  *adjacent* to appealing terrain, but it cannot survive being built on.
 - **Consume appeal** (reward yields on appealing tiles): `EFFECT_PLOT_ADJUST_YIELD` on
   `COLLECTION_CITY_PLOT_YIELDS` (or `COLLECTION_PLAYER_PLOT_YIELDS`) + `REQUIREMENT_PLOT_HAS_APPEAL`.
   Add `REQUIREMENT_PLOT_DISTRICT_CLASS` (`DistrictClass=RURAL`) to restrict to the rural ring.

@@ -146,3 +146,13 @@ is necessary but not sufficient — the native stack persists and is *intended* 
 - Full per-axis amplifier rosters (which leader/civ/memento/belief pays into each of 12 stacking axes)
   live in the catalogs: `leaders-catalog.md`, `civilizations-catalog.md`, `mementos-catalog.md`,
   `religion-and-beliefs-catalog.md`. Reconcile a new bonus against them, base **and DLC**.
+
+## "Convert yield X into yield Y" is a native effect — don't approximate it
+
+`EFFECT_CITY_ADJUST_YIELD_CONVERSION` (args `FromYieldType`, `ToYieldType`, `Percent`) pays a
+percentage of one yield out as another, per city, live. Shipped precedent: Pachacuti's leader
+ability (Food→Production 10%) and the Joseon Seowon (Production→Culture 10%). It is **additive**
+(the source yield is not reduced). Benchmark testing showed models repeatedly miss this and
+substitute flat bonuses or per-tile hacks while claiming true conversion "isn't possible in
+data" — it is; this is the effect. For a "town food surplus into Science" design, this on the
+town + a Food source gate is the whole mechanic.

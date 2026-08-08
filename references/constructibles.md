@@ -104,6 +104,14 @@ A buildable building needs rows in **four** tables (miss the `Buildings` row and
 - `RequiresUnlock="true"` + a `ProgressionTreeNodeUnlocks` row (`TargetKind="KIND_CONSTRUCTIBLE"`) gates it on a
   tech/civic node — same as a base wonder (e.g. World's Fair is unlocked by `NODE_CIVIC_MO_MAIN_HEGEMONY` at
   `UnlockDepth="2"`/mastery; Manhattan Project by `NODE_TECH_MO_NUCLEAR_FISSION` at depth 1).
+  **⚠ The unbuildable-building trap (benchmark-caught, twice):** `RequiresUnlock="true"` with NO
+  matching `ProgressionTreeNodeUnlocks` row = a building that exists but can never be built, silently.
+  Decide explicitly: either `RequiresUnlock="false"` (always available) or ship the unlock row.
+  And deliver **base yields as plain `Constructible_YieldChanges` rows** — never via a modifier
+  wrapper "for consistency": a wrapper that's defined but never bound in `<GameModifiers>` is dead
+  code, and the plain row is the shipped idiom anyway. Pre-flight checklist for every new building:
+  Types row · Constructibles row · Buildings row · valid-districts row · yield rows ·
+  unlock row **or** `RequiresUnlock="false"` · localization for Name/Tooltip.
 - `Constructible_ValidDistricts = DISTRICT_URBAN` lets it overbuild obsolete urban districts.
 - **No player-state buildability gate exists.** The `Constructibles` schema gates only on physical placement
   (`Constructible_ValidDistricts/Terrains/Biomes/Features/Resources`, `Adjacent*`, hemisphere `RequiresHomeland/

@@ -93,3 +93,141 @@ player an ongoing bonus," grep for `EFFECT_ATTACH_MODIFIERS` and read the
 
 When you report a chosen effect/requirement to the user, cite the base-game file you
 copied it from — it makes the choice auditable and easy to revisit.
+
+---
+
+# Part 2 — Never assume *semantics*
+
+Part 1 stops you inventing names. It does not stop the more common failure: **using a
+real name and assuming what it means.** A whole Modern design pass was re-cut four times
+because of assumptions that the shipped data contradicted — every answer was already in
+the files.
+
+**This section deliberately does not record answers.** Thresholds, tag names, class
+membership and scoping all change with patches (the 1.4.2 pass regenerated every
+catalog). What is durable is *that the system exists*, *where its truth lives*, and *the
+question to ask*. Look the value up every time.
+
+## Step 0 — enumerate the space *before* you narrow
+
+The seven checks below assume you already found the right candidate. The more common
+failure happens one step earlier: **searching confirmatorily.** You go in holding a
+candidate, find something that satisfies it, and stop — never learning what else was
+there.
+
+This is not a diligence problem. It is a sequencing one, and it has a fix:
+
+**List the whole set first, then filter.** Concretely:
+
+- **Folder before file.** `ls` the age's `data/` directory and read *every* filename before
+  opening one. Files that look like variants (`-common`, `-unique`, `-shared`, `-v2`,
+  `-tot-`, per-age suffixes) are usually different content, not duplicates. If six files
+  share a prefix, know what all six hold before using one.
+- **Class before member.** When a gate names a *class* or *tag*, expand it to its members
+  and count them before judging whether it is rare or common.
+- **Whole row before one attribute.** Constructible and unit rows carry many independent
+  constraints — age stamp, terrain, district, tags, purchasability, network flags. Reading
+  one and concluding is how a water building gets called a land building.
+- **Whole argument list before one argument.** Print every `<Argument>` a requirement takes
+  across *all* its usages, not just the usage you happened to open.
+- **Both directions of a cross-age relationship.** Per-age folders hold content for *other*
+  ages too. A civ's late-age material can live under its own early-age folder — so
+  searching only the age you are designing for will miss it.
+
+**Then say what you searched.** Report the boundary of the search, not just the finding:
+"across all age folders" or "in `age-modern/data` only" are very different claims. Stating
+it makes an incomplete sweep visible instead of silently reading as complete — to the user
+*and* to you.
+
+**The tell:** if you can describe the thing you were looking for before you started
+looking, you are at risk of a confirmatory search. Enumerate first anyway.
+
+## The seven checks
+
+Run these on any mechanic before designing on it.
+
+**1. What does it actually count?**
+Read the **argument values** in shipped usages, not just the argument names. A
+requirement used at `Count=15` is not counting distinct types when the thing it counts
+only has two or three variants — it is counting copies.
+
+**2. What is it scoped to?**
+Scoping usually lives in a *sibling* requirement inside the same `<RequirementSet>`, not
+in the requirement you are reading. Grep a usage with `-B6 -A6` and look for
+`REQUIREMENT_PLOT_DISTRICT_CLASS`, `REQUIREMENT_CITY_IS_CITY`, `REQUIREMENT_CITY_IS_TOWN`
+and age filters sitting next to it. A requirement that looks universal is often only ever
+used under a narrow gate.
+
+**3. Is it the engine stopping you, or just convention?**
+If every shipped usage is scoped one way, that may be a *design choice*, not a limit.
+Check the underlying data before concluding something is impossible: if a value is
+computed from terrain/features/adjacency, it exists everywhere that terrain does,
+whatever the base game chooses to pay out on.
+
+**4. What gates it — and how big is that gate really?**
+Find the unlock modifier (`EFFECT_*_UNLOCK_*`, or a `RequiresUnlock="true"` flag on the
+row) and read its requirements. **Expand any CLASS to its members before calling
+something rare** — a resource-class or tag gate that sounds like a strategic check is
+often a broad, common set. Ages also *reclassify* things, so check the age folder's
+`<Update>` blocks, not just the base row.
+
+**5. Is it something the player does by default?**
+If normal play satisfies it, it is not an achievement — it is a description of the game.
+Check what the subject does unprompted before building a goal on it.
+
+**6. Player-facing name ≠ data id.**
+Resolve the `LOC_*` name before writing any user-visible text. Several systems ship data
+ids that differ sharply from what the player sees on screen, and using the raw id is
+wrong even when the mechanic is right.
+
+**7. Version-stamp anything you do record.**
+If you must write a value down, date it and name the file you read it from, so the next
+reader knows to re-check rather than trust.
+
+## Enumerate the *gateways*, not just the mechanics
+
+When you need content to build a condition on, sweeping requirement names finds you *mechanics*. It
+does not find you **gateways** — content locked behind a commitment the player has to make. Those are
+easy to miss precisely because a gateway's payload looks ordinary in the data: an improvement, a
+project, a tree node. What makes it a gateway is the *unlock chain sitting behind it*.
+
+Sweep these before concluding a system has nothing to offer. Look up current specifics per Part 2 —
+this is a map of where to look, not a list of answers.
+
+| Gateway | What the player must commit to | Where it is defined |
+|---|---|---|
+| **City-state suzerainty** | win and hold a city-state; types unlock their own improvements | `REQUIREMENT_PLAYER_ELIGIBLE_CS_BONUS`, `EFFECT_PLAYER_GRANT_CONSTRUCTIBLE_UNLOCK`, the `CITY_STATE_UNIQUE_IMPROVEMENT` tag, `independents*.xml` |
+| **Town specialisation** | an exclusive, permanent choice for the Age; also governs what that town may *purchase* | `projects.xml` (`ExclusiveSpecialization`, `RequiresUnlock`, `PrereqPopulation`) + the bundles in `projects-gameeffects.xml` |
+| **Ideology / government** | a once-per-Age pick, changeable only by crisis | ideology rows (`FirstTreeNode`, `RivalIdeology`), `Government_GoldenAges` |
+| **Node masteries** | a second pass over a node already researched | `UnlockDepth="2"` rows in the progression trees |
+| **Civ-unique trees** | research outside the shared tree; different every game | trees named `TREE_CIVICS_` (plural) — note `TREE_CIVIC_` singular is the main tree and its branches |
+| **Age-transition cards** | a one-time pick at the Age boundary | `age-transition.xml`, `age-transition-gameeffects.xml` |
+| **Crisis stages** | time-gated, and shared by every player at once | `crisis-stages.xml`, `REQUIREMENT_AGE_CRISIS_STAGE_IS_X` |
+
+**⚠ A gateway keyed to per-civ ids needs a generator, not a hand-written list.** Unique trees and
+civ-unique improvements enumerate by id, span Base *and* DLC, and grow with every civ pack. A civ whose
+ids are missing simply cannot satisfy the condition — no error, no log line, it silently never fires.
+Generate the list, and add a check that fails the build when the game and your mod disagree.
+
+## Where each system's truth lives
+
+Use this as a lookup map, not as an answer sheet. Paths are relative to
+`Base\modules`; always widen to `DLC\` if a search comes up empty (Part 1).
+
+| Question | Read | Ask |
+|---|---|---|
+| What does a requirement mean / accept? | grep the `REQUIREMENT_*` across all ages, `-B6 -A6` | what are the argument *values*, and what sits beside it in the set? |
+| Is a building/improvement gated? | `age-*/data/constructibles.xml`, the row itself | age stamp, `Purchasable`, `Town`, `MultiplePerCity`, district rows, and any network/prereq flag |
+| What unlocks a project or focus? | `age-*/data/projects.xml` for `RequiresUnlock`; then grep the project id in `*gameeffects*` | which modifier grants it, and what does *that* require? |
+| What does a town focus do? | `age-*/data/projects-gameeffects.xml` | its modifier bundle — including what it lets the town **purchase** by tag |
+| Which buildings carry a tag? | the `<TypeTags>` block in `constructibles.xml`, per age | are the matches generic, or civ-unique? |
+| What is in a resource class? | `age-*/data/resources*.xml` — including `<Update>` blocks | which age reclassifies what, and how many members are there? |
+| Which node unlocks X? | `age-*/data/progression-trees-*.xml` | is it *this* node (circular) or one below (legal)? |
+| What can a gossip event filter on? | grep `<Argument name="GOSSIP_*">` values across all ages | enumerate the whole parameter namespace before using a flag |
+| Does an event fire on start or completion? | the gossip name itself, plus any `REQUIREMENT_PLAYER_HAS_COMPLETED_*` sibling | is there a completion event at all, or only a started one? |
+| Is a unit/building civ-specific? | `TraitType` on the row; `UNIT_CLASS_UNIQUE` in `<TypeTags>` | how many civs actually get it? |
+
+## The rule that follows from all of this
+
+**Cite the file for every non-obvious claim you make about a mechanic.** If you cannot
+name where you read it, you are guessing — say so explicitly rather than stating it flat.

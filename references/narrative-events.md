@@ -53,6 +53,32 @@ Tables (all in `<Database>`, plain UpdateDatabase):
 - `RequirementSetId` — **completion check, polled continuously after init**; pop-up fires on
   completion. `Met` = no check. Discovery A-stories use `REQSET_DISCOVERY_BASE_NARRATIVE`
   (= single `REQUIREMENT_PLAYER_TRIGGERED_DISCOVERY`).
+- ⚠⚠ **"Fire a story when the player achieves X" puts X in `RequirementSetId` (polled), NEVER in
+  `ActivationRequirementSetId` (checked once at init → story silently archived if X isn't already
+  true at game start).** Field-proven the hard way (E&I mod, 2026-08-01): 16 REQUISITE stories with
+  the achievement in the activation set and `RequirementSetId="Met"` — every one archived at init,
+  zero pop-ups ever, no log errors. Wrong-way-round encodes fail SILENTLY. (That mod ultimately
+  shipped the achievement watch as direct always-attached modifiers with `SubjectRequirements`
+  + run-once + an `EFFECT_ATTACH_MODIFIERS` wrapper, with a UI-script pop-up — also a valid route,
+  and immune to story queue caps.)
+- **⭐ THE POLLED SET IS THE ESCAPE HATCH FOR "TABLE-FORM-ONLY" REQUIREMENTS.** Some requirements
+  appear in the shipped data **only inside `<RequirementSet>` rows** and never in a live `<Modifier>`
+  — and several of those are **inert when written inline** in `SubjectRequirements`: no error, no log
+  line, the condition simply never passes. Both halves are now proven in-game (E&I, 2026-08-06):
+  `REQUIREMENT_PLAYER_HAS_X_SETTLEMENTS_AT` stayed dark inline on a settlement that plainly
+  qualified, while `REQUIREMENT_PLAYER_RAZED_X_CITIES` **fired correctly** from a hidden story's
+  polled `RequirementSetId`. `REQUIREMENT_PLAYER_AT_PEACE_X_TURNS_AGO` (one shipped use, in a
+  narrative set) failed inline the same way.
+  **So the check is cheap and worth doing before you encode:** grep the requirement in the base data
+  and see whether *any* use sits inside a `<Modifier>`. If every use is in a `RequirementSet`, do not
+  write it inline — deliver it through a hidden story whose `RequirementSetId` carries it, exactly
+  the context the base game uses.
+  Two rules for that route: the marker/boost modifiers it rewards must carry **no inline
+  requirements of their own** (the condition belongs in the polled set; inline ones double-gate it
+  silently), and **verify the story is ACTIVE, not archived**, before trusting a null result —
+  `player.Stories.getActiveIds()` / `getNumArchived()` + `getArchived(i)`, resolving each id via
+  `Stories.find(id)` → `GameInfo.NarrativeStories.lookup(story.type)`. An archived story is the
+  wrong-way-round failure above and no amount of playing will fire it.
 - `Age` — story belongs to one Age.
 - `UIActivation` — pop-up skin: STANDARD, DISCOVERY, 3DPANEL, CRISIS, LIGHT, SYSTEMIC, CINEMATIC.
 - `Queue` — for discovery stories: which landmark + likelihood tier (see Discoveries below).
@@ -78,8 +104,75 @@ Tables (all in `<Database>`, plain UpdateDatabase):
   `GOSSIP_UNIT_USES_ABILITY_CHARGE` (params UnitType, Ability — the Surveyor's ABILITY_CLAIM_RESOURCE
   emits this on every claim → post-claim reward chains are easy), GOSSIP_GATHER_RESOURCE (the improved
   resource's plot), GOSSIP_FOUND_CITY, GOSSIP_CONSTRUCT_BUILDING, GOSSIP_UNIT_DESTROYED, etc.
+- **✅ GOSSIP_CONSTRUCT_BUILDING — three facts proven in-game 2026-08-02 (E&I Guilds deed):**
+  1. **PURCHASING a building fires the construct gossip**, exactly like producing one. A
+     gold-purchased Bazaar tripped the deed. Do not assume event-counted construction deeds
+     require production — they don't, and a purchase-heavy player earns them just the same.
+  2. A `Numeric` payload filter works and compares against the **summed** adjacency, not a
+     single source: `Hash,ConstructibleType,BUILDING_BAZAAR,Numeric,AdjacencyBonus,3` fired on a
+     Bazaar drawing +3 from three adjacent Coast tiles alone.
+  3. ⚠️ **Resource tiles use a DIFFERENT ConstructibleType.** Four improvements ship a
+     `_RESOURCE` twin — `IMPROVEMENT_WOODCUTTER_RESOURCE`, `_MINE_RESOURCE`,
+     `_CLAY_PIT_RESOURCE`, `_FISHING_BOAT_RESOURCE` — created when the tile carries a resource
+     (`Constructible_ValidResources` maps e.g. RESOURCE_SPICES → WOODCUTTER_RESOURCE). They
+     display under the base name in the tooltip, so this is invisible in play. Farm, Pasture,
+     Camp, Plantation and Quarry have no twin. Any `Hash,ConstructibleType,IMPROVEMENT_X` filter
+     must list BOTH ids or it silently misses every resource tile.
+- **⚠️⚠️ NEVER filter a train event on `UnitType` ALONE — it silently excludes every civ whose
+  UNIQUE replaces that unit.** Found in play 2026-08-02: a deed asking for a Slinger could not be
+  earned by the Han, whose Nu *replaces* the Slinger — those players cannot build the base unit at
+  all, so the deed was invisible-impossible for them. This is not a rare edge: `UNIT_SLINGER` has
+  **5** replacements shipped (Burning Arrow, Hulche, Hwarang, Nu, Yumi), `UNIT_WARRIOR` has 2
+  (Hoplite, Medjay), `UNIT_CROSSBOWMAN` has 2 (Keshig, Waraq'aq). Check
+  `<Row ... ReplacesUnitType="UNIT_X"/>` before naming any unit in a deed.
+  **The fix**: the train event also carries **`UnitTypeReplaces`**, which matches a unique *by the
+  unit it replaces* (shipped precedent: `Hash,UnitTypeReplaces,UNIT_WARRIOR`). List both forms.
+  Because base and unique are mutually exclusive for any one civ, `Amount` counting stays correct:
+  4 slots (2 units × base/replacement) with `Amount=2` reads "one of each unit, whichever form this
+  civ builds". For a `DuplicateCount` deed ("train 3 of X"), do NOT add slots — `DuplicateCount` is
+  documented for a SINGLE gossip type; give the unique path its own modifier writing the same
+  property, since only one path can ever fire.
+  Better still where it fits: use a **class flag** (`CavalryUnit`, `InfantryUnit`) and the whole
+  problem disappears, since a unique keeps its class.
+- **✅ GOSSIP_TRAIN_UNIT carries UNIT-CLASS flags, not just UnitType** (proven in-game 2026-08-02):
+  `Hash,CavalryUnit,True` counted any cavalry unit regardless of its specific type, so a deed can
+  say "train 3 Cavalry" without enumerating every unit id per civ.
+- **`GOSSIP_UNIT_COMBAT_DEATH` is the richest payload in the game.** ⚠️ CORRECTED 2026-08-02 — an
+  earlier version of this note wrongly claimed the kill gossip carried no class flags. Verified list:
+  `OtherPlayer` · `AtWar` · `CombatType` · `DomainType` / `KillingDomainType` · `KillingUnitType` ·
+  `KillingDamage` · `KillingUnitKillCount` · `KillingUnitInCommandRadius` · `IsKillingUnitInfantry` ·
+  `IsKillingUnitPlotOwner` · `IsKillingUnitForeignHemisphere` · `DyingUnitType` · `DyingUnitLevel` ·
+  `DyingCivilization` · `DyingLeader` · `DyingWarSupport` · `IsDyingMinorPlayer` ·
+  `IsDyingUnitCommander` · `IsDyingUnitInfantry/Cavalry/Ranged/Siege` · `IsDyingUnitStronger` ·
+  `IsDyingUnitFaster` · `IsDyingUnitWalled` · `IsDyingUnitPlotOwner` · `IsDyingUnitInCommandRadius` ·
+  `IsDyingUnitForeignHemisphere` · `BiomeType`.
+  Design consequences: **`IsDyingMinorPlayer`** separates Independent kills from major-civ kills, so
+  two combat deeds in one Age need not nest; **`IsDyingUnitStronger`** expresses "beat something
+  tougher than you" without naming a unit; `KillingUnitInCommandRadius` expresses fighting under a
+  Commander. ⚠️ But there is **no `KillingUnitTypeReplaces`** — the killer side has no unique-unit
+  escape hatch, so a killer-type filter must enumerate the uniques (base data does exactly that:
+  `UNIT_IMMORTAL` + `UNIT_IMMORTAL_2`). Prefer `IsKillingUnitInfantry` or a dying-side flag instead.
+  `KillingUnitKillCount` is a hidden per-unit tally used only by narrative stories — units do NOT
+  level in Civ 7, so do not present it to players as veterancy.
+  When counting *distinct kinds* of thing this way, remember `Amount` counts **matched slots**,
+  not distinct concepts — listing a base id and its `_RESOURCE` twin makes one logical type
+  score twice. Count logical types with one run-once marker each instead.
 - `REQUIREMENT_PLAYER_HAS_AT_LEAST_NUM_GOSSIPS` is the narrative workhorse requirement; supports
   per-gossip param filters (`Hash,UnitType,UNIT_X,Hash,Ability,ABILITY_Y`), `DuplicateCount`,
+  **The numbered-suffix convention (verified vs shipped data 2026-07-31):** the `01`/`02`
+  suffixes seen in shipped requirements (`GOSSIP_CITY_RAZED01`) are NOT distinct gossip
+  types — the gossip row is plain `GOSSIP_CITY_RAZED`; the suffix exists only as the
+  *argument key* inside this requirement, letting one requirement reference several
+  parameterized instances: `<Argument name="GossipTypes">GOSSIP_CITY_RAZED01</Argument>`
+  paired with `<Argument name="GOSSIP_CITY_RAZED01">Hash,OtherPlayer,Other</Argument>`
+  (razed-gossip payload fields: `OtherPlayer` Self/Other, `IsForeignHemisphere`). Two
+  corollaries proven by exhaustive shipped-data search: a `COLLECTION_NARRATIVE_STORY`
+  reward modifier carries **no scoping requirement** (scoping is purely by ID reference
+  through `NarrativeRewards`/`NarrativeStory_Rewards` — there is no
+  `REQUIREMENT_NARRATIVE_STORY_TYPE_MATCHES`, don't invent it); and **no shipped story
+  re-fires per triggering event** — the razed-gossip precedent (9009A) activates once at
+  a count threshold and grants a permanent modifier once. Treat any "fires again on each
+  raze/event" design as unproven until litmus-tested.
   `Distance` (two gossips within N tiles of each other), **`AfterInit=True`** (only count gossips
   after story init — essential for repeatable stories so each instance waits for a NEW event),
   `AfterTurn`, `TurnWindow`, `OrderedTurnWindow`.

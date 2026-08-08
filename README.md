@@ -5,6 +5,11 @@ mods — `.modinfo` manifests, GameEffects modifiers/requirements, projects, tra
 bonuses — plus the hard-won "silent killer" rules (integer version, the attach-wrapper, MinDepth gating, etc.).
 It triggers automatically when you're working on a Civ VII mod. See [SKILL.md](SKILL.md) for the full contents.
 
+**Measured, not vibes:** on a 28-task paired benchmark (same model with vs. without the skill, every engine
+identifier verified against game data), the skill scored **98% vs. 80%** on graded assertions and finished
+**33% faster** — with the failure gap concentrated in "deploys cleanly, silently does nothing" traps.
+Full methodology, honest tie/loss reporting, and the task list: [BENCHMARKS.md](BENCHMARKS.md).
+
 ## Install
 
 The skill is just a folder of files that lives in a Claude Code skills directory. The installer copies it

@@ -103,6 +103,34 @@ researched tech/civic node).
    [references/finding-base-game-patterns.md](references/finding-base-game-patterns.md).
    The templates in `assets/templates/` are copied from real base-game rows.
 
+   **⛔ THE VERIFICATION GATE — not optional, and it is cheap.** Before you write ANY
+   `EFFECT_*`, `REQUIREMENT_*`, `COLLECTION_*`, table name, or argument name into a
+   file, grep it in
+   [references/effects-collections-catalog.md](references/effects-collections-catalog.md)
+   (which lists every identifier the installed game actually uses, WITH its argument
+   names and usage counts — the catalog is authoritative; you do not need to re-derive
+   it from raw XML). If the catalog file doesn't exist yet, generate it first —
+   `python tools/gen-effects-catalog.py` (see the data-references note below) — don't
+   fall back to guessing. Three outcomes, three actions: **found with your argument** →
+   use it; **found but not your argument** → your argument has no shipped precedent —
+   either find the real one in the catalog line or flag yours explicitly as unproven;
+   **not found at all** → it does not exist; do not write it, say so, and pick a real
+   route instead. In benchmark testing, every single crash-grade defect in
+   skill-assisted output came from skipping this step — a five-second grep prevents
+   each one. This applies to UI work too: JS API names get the same treatment against
+   the installed `Base/modules` source before use.
+
+   **The catalog's USAGE COUNT is data, not decoration. Read it before you build.** An
+   identifier used once is unproven, and its single shipped use tells you what it is
+   actually *for* — open that use and read the requirements around it. Two silent
+   never-fires in one day (2026-08-08) came from a 1-use requirement whose name implied
+   something the neighbouring rows contradicted. Likewise **stay inside the shapes and
+   sizes the base game exercises**: the largest `REQUIREMENTSET_TEST_ANY` Firaxis ships
+   holds four requirements, and a 53-row one fired nothing with no log line at all. When
+   you need more alternatives than that, emit one modifier per alternative all writing the
+   same key. See the caveat block at the head of the Requirements section in
+   [references/effects-collections-catalog.md](references/effects-collections-catalog.md).
+
 2. **Prove the plumbing before writing real content.** Deploy the litmus mod in
    `assets/litmus-mod/` (a one-line `UpdateDatabase` with an obvious in-game effect
    and an integer version). If *it* doesn't apply, the problem is loading/deployment,
@@ -110,6 +138,11 @@ researched tech/civic node).
 
 3. **Write the data + effects**, validating XML well-formedness as you go:
    `powershell scripts/validate-xml.ps1 <mod-folder>` (or `[xml](Get-Content file)`).
+   Validate **every** XML file you produce — the `.modinfo` and config/input files
+   included, not just the data files; benchmark testing caught shipped modinfos that
+   failed to parse. One trap worth naming because it keeps recurring: a bare `--`
+   inside an XML comment (e.g. using `--` as a dash in prose) is **invalid XML** and
+   the parser rejects the whole file — write comments without double hyphens.
    Order `<Item>`s so tables are registered before they're referenced (projects
    before the modifiers/traditions that name them).
 
@@ -154,8 +187,8 @@ the "DIAGNOSE before you rebuild" section + the two ready-made probes in
 | [references/custom-pantheons.md](references/custom-pantheons.md) | **Custom Pantheons** — mod-writable (verified). Pantheons are plain `Beliefs`/`BeliefModifiers` rows wired through the standard modifier system; the chooser is **data-driven** so a new belief auto-appears with no acquisition wiring. The 4-row + modifier-chain recipe, `EFFECT_ATTACH_MODIFIERS` gated on `REQUIREMENT_PLAYER_HAS_PANTHEON`, the `Shareable` flag, `EFFECT_PLAYER_UNLOCK_PANTHEON` to grant extra picks, and the Altar/Antiquity-fade gotcha. (Belief *catalog* is the generated `religion-and-beliefs-catalog.md`.) |
 | [references/great-people.md](references/great-people.md) | **Great People** — reference + custom-build recipe (verified). The 3-table shape (`GreatPersonClasses` / `GreatPersonIndividuals` / `GreatPersonIndividualActionModifiers`), abilities = standard modifiers, Retire→`AttachmentTargetType` flow, **civ-lock via the UNIT's `TraitType`** (omit for all-civ). ⚠ **No `EFFECT_*GRANT_GREAT_PERSON`** — acquisition is a fixed trigger set (unique quarter / constructible+population / suzerain count), so a GP **can't hang off a tree node**, only a building/wonder. Full worked example + blockers. |
 | [references/ui-modding.md](references/ui-modding.md) | **UI mods (JS/HTML/CSS)**: modinfo wiring (`UIScripts` vs `ImportFiles` file-shadowing, shell vs game scope, `UpdateText` accepts **.sql**, LoadOrder conventions, `fs://game/<mod-id>/` paths); the patch ladder (**`Controls.decorate`** → prototype monkey-patch → whole-file replacement); custom screens (`Panel` + `Controls.define` + `ContextManager`), sub-system-dock buttons; **lenses & lens layers** (LensManager, map sprites/VFX); interface modes + views; **hotkeys** (InputActions rows + HotkeyManager); **mod options + the ⚠ single-`modSettings`-localStorage-key rule**; per-game `Catalog` storage; the JS game API surface (+ community TypeScript stubs); cross-mod `globalThis` APIs; the **ui-next dual-stack** warning + the **Portal-observer patch** for Solid tooltips `Controls.decorate` can't reach (MutationObserver on `#uinext-tooltips`, `:hover` trigger recovery); FireTuner scripting-console debugging. Distilled from 19 shipping Workshop mods. |
-| [references/finding-base-game-patterns.md](references/finding-base-game-patterns.md) | How to grep the base game for real EFFECT_*/REQUIREMENT_*/COLLECTION_* names and argument names. |
-| [references/accomplishment-design.md](references/accomplishment-design.md) | **Designing earn-triggers (Triumphs / quest deeds / card unlocks) that reward SKILL, not next-turn mashing.** The 7 archetypes of a good accomplishment (spatial optimization · **adversity→asset** · placement context · deep investment · setup chain · timing window · sacrifice/tradeoff) with the Civ 6 Historic-Moment each echoes + the Civ 7 requirement tools; the anti-patterns (count-to-N, opaque-relative, happens-naturally, happiness-stage, map-luck); the **4 design tests** (planning / visibility / not-mindless / flexible); and the content-budget reality (a yield-lane has ~2–4 buildings, a tile holds 2 → **decouple trigger from the reward's lane**). Read before authoring any accomplishment/Triumph/quest content. |
+| [references/finding-base-game-patterns.md](references/finding-base-game-patterns.md) | **Two parts.** (1) How to grep the base game for real EFFECT_*/REQUIREMENT_*/COLLECTION_* names and argument names — never invent them. (2) **Step 0: enumerate the space before narrowing** — list every file in the folder, every member of a class, every argument on the row, *then* filter; state the boundary of what you searched. Then **never assume semantics** — seven checks (what it counts, what it is scoped to, engine-vs-convention, how big the gate really is, is it default behaviour, data id vs player-facing name, version-stamping) plus a lookup map of where each system's truth lives, and a **gateway table** — the content locked behind a commitment (city-state suzerainty, town specialisation, ideology, node masteries, civ-unique trees, age-transition cards, crisis stages) that a requirement-name sweep will never surface. Read part 2 before designing on any mechanic. |
+| [references/accomplishment-design.md](references/accomplishment-design.md) | **Designing earn-triggers (Triumphs / quest deeds / card unlocks) that reward SKILL, not next-turn mashing.** The 7 archetypes of a good accomplishment (spatial optimization · **adversity→asset** · placement context · deep investment · setup chain · timing window · sacrifice/tradeoff) with the Civ 6 Historic-Moment each echoes + the Civ 7 requirement tools; the anti-patterns (count-to-N, opaque-relative, happens-naturally, happiness-stage, map-luck); **classify candidates by what the player must ENGAGE with, not by mechanic shape** — filing by verb ("build N of X") hides the prerequisite chain that makes one candidate interesting and another filler; the **4 design tests** (planning / visibility / not-mindless / flexible); and the content-budget reality (a yield-lane has ~2–4 buildings, a tile holds 2 → **decouple trigger from the reward's lane**). Read before authoring any accomplishment/Triumph/quest content. |
 | [references/civ6-civ7-mechanic-delta.md](references/civ6-civ7-mechanic-delta.md) | **Civ VI ↔ Civ VII mechanic delta = the feasibility gate.** Before porting a Civ-VI-inspired idea, check whether the mechanic even exists in Civ VII: Part A marks every major Civ VI subsystem ✅ present / 🔷 different-shape / ❌ absent (Great People/GPP, Great General, Governors, Amenities, Housing, Chop/Harvest, Tourism, World Congress, Loyalty, Envoys, Era Score…) with the grounded reason; Part B lists Civ VII-native systems with no Civ VI analog (the fresh design space); plus a worked Great-General-vs-Commander example. **Two caveats baked in: name-match ≠ mechanic-match (`EFFECT_DAE_*` = Influence diplomacy actions), and absent-keyword ≠ impossible (great people are a DATA TABLE, not an EFFECT_ — always check tables too).** Read before designing any card/bonus inspired by Civ VI. |
 | `references/effects-collections-catalog.md` *(generate locally — see note below)* | **Authoritative master list** of every EFFECT_*/COLLECTION_*/REQUIREMENT_* + YieldType **actually used** by the installed game, with per-effect/requirement argument names + usage counts and player-rooted (★) collection flags. Generate via [tools/gen-effects-catalog.py](tools/gen-effects-catalog.py). Confirm a name/argument exists here before building, instead of guessing or trusting external/stale lists. |
 | `references/cards-suzerain-governments-catalog.md` *(generate locally — see note below)* | **Every Tradition/Policy/Crisis card + Suzerain (city-state) bonus + government** shipped by base + all DLC, with resolved English effects, tagged by slot type / age / civ source (533 cards + 126 suzerain + 13 governments). Confirm what a base/DLC card already does, and keep a mod's new cards **new-&-unique** — don't duplicate/closely-mirror anything here. Generate via [tools/gen-cards-catalog.py](tools/gen-cards-catalog.py). |

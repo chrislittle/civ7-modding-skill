@@ -231,6 +231,40 @@ Classical Republic +20% Culture / +15% Production toward Wonders). The Explorati
 are **Celebration (Golden-Age) bonuses**, a distinct system from Policies/Traditions — full
 card catalog in [cards-suzerain-governments-catalog.md](cards-suzerain-governments-catalog.md).
 
+### Government lifecycle — WHEN you pick one, and why you can't just switch [DATA]
+
+Data model, per age in `age-*/data/governments.xml`:
+
+| Table | What it does |
+|---|---|
+| `Governments` | the government + its `CelebrationName` |
+| `StartingGovernments` (AgeType, GovernmentType) | **the menu the player may choose from in that age** |
+| `Government_ValidGoldenAges` | the (usually 2) Celebration bonuses that government offers |
+| `GovernmentModifiers` | its always-on passives |
+
+**Shipped menus — three choices per age**, one per "lane":
+AQ `CLASSICAL_REPUBLIC / DESPOTISM / OLIGARCHY` · EX `FEUDAL_MONARCHY / PLUTOCRACY / THEOCRACY` ·
+MO `AUTHORITARIANISM / BUREAUCRATIC_MONARCHY / ELECTIVE_REPUBLIC`. Extra governments exist in
+`Types` but are **commented out of `StartingGovernments`** (`REVOLUCION`, and EX's
+`REVOLUTIONARY_AUTHORITARIANISM / CONSTITUTIONAL_MONARCHY / REVOLUTIONARY_REPUBLIC`) — they are
+crisis/narrative-granted only, never freely selectable.
+
+**⚠ A GOVERNMENT IS A ONCE-PER-AGE CHOICE, NOT A SWITCHABLE STANCE — do not design deeds, quests or
+rewards around "change your government" mid-age.** The mechanics:
+- Selection is gated by `EFFECT_PLAYER_BLOCK_GOVERNMENT_SELECTION`. The Antiquity civ trait applies
+  that block while `NODE_CIVIC_AQ_MAIN_CHIEFDOM` is **not** complete (`inverse="true"` requirement),
+  so researching **Chiefdom** is what opens the first-ever government pick; later ages open the
+  picker at the age flip.
+- The picker itself is `NOTIFICATION_CHOOSE_GOVERNMENT` → the `government-chooser` UI. There is no
+  player-initiated "swap government" action and no swap cost anywhere in the data.
+- Mid-age changes exist ONLY as scripted pushes: `EFFECT_PLAYER_SET_GOVERNMENT` (5 uses, all
+  narrative/crisis modifiers — this is how Revolucion and the Revolutions-crisis governments land).
+- `GOSSIP_CHANGE_GOVERNMENT` therefore fires at those moments (age pick / crisis), not on a whim —
+  counting it as a repeatable player action is a design error.
+- **Celebrations do NOT change government.** A Celebration grants a policy slot and lets you pick
+  one of your *current* government's two `Government_ValidGoldenAges` bonuses
+  (`celebration-chooser` UI). Government choice and Celebration choice are different pickers.
+
 ---
 
 ## Ages, crises & legacy pacing
@@ -278,6 +312,21 @@ The unlock chain (data-backed civics — grep to confirm exact node ids):
   Communism for one turn locks you in. **Racing matters: the first leader to join gets +2
   Policy Slots, the second gets +1.** Ideology civics grant Attribute points, free Capital
   units, and Specialist/Town trade-off policies.
+- **⚠ IDEOLOGY RIVALRY IS A ONE-WAY RING, NOT MUTUAL OPPOSITION.** Each `Ideologies` row carries a
+  single **`RivalIdeology`**, and they chain rather than pair up:
+  **Communism → Democracy → Fascism → Communism.** So a Communist player's rival is Democracy —
+  *not* Fascism, even though Fascism's own rival is Communism. The relation is directional and
+  every ideology has exactly ONE rival, never two.
+  This matters for **`REQUIREMENT_PLAYER_IS_AT_WAR_WITH_OPPOSING_IDEOLOGY`** (10 shipped uses),
+  which takes **no arguments** and tests only *"is my enemy holding MY rival ideology"*. Verified
+  in-game 2026-08-06: a Communist player at war with a Fascist civ did **not** satisfy it, though
+  the identical pairing would satisfy it for the Fascist. There is no "any different ideology"
+  variant and nothing to widen it with, so a deed or bonus built on it reaches only **one of the
+  two** other ideologies — price it as an opportunity, and never word it as "an opposing ideology",
+  which players read as "any other one".
+  The three roots also carry **`CanBoost="false"`** and can never take a tech/civic boost; only the
+  two nodes behind each root can. Each ideology is its own `ProgressionTree`, so a player walks one
+  branch and the other four boostable nodes are unreachable that game.
 
 (Belief *contents* are partly a work-in-progress in the source; treat the structure above
 as solid and verify individual belief yields in-game or against

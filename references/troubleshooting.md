@@ -55,6 +55,34 @@ actually **Applied**: `powershell scripts/check-applied.ps1 <mod-id>` (or grep
     DISCOVERY event (a unit reaching/adjacent the wonder → the "discovered [X]" notification). A turn-1 sighting at the
     edge of vision is a *reveal*, not a discovery. Confirmed in-game; base parallel `MOUNT_EVEREST_REVEAL` fires *"on
     discovery."* If testing, send a unit to actually visit a NW. → [gameeffects.md](gameeffects.md#requirements)
+12. **The OR-set is too big.** A `REQUIREMENTSET_TEST_ANY` far larger than anything the base game
+    ships fires nothing and logs nothing. The installed game's **largest holds four requirements**;
+    a 53-row set failed both as a named set and inline (2026-08-08). Split it into one modifier per
+    alternative, each writing the SAME property key. Inline `type="REQUIREMENTSET_TEST_ANY"` on
+    `<SubjectRequirements>` is itself fine — 22 base uses. → [effects-collections-catalog.md](effects-collections-catalog.md)
+13. **The requirement has one shipped use, and it does not mean what its name suggests.** Before
+    building on a low-count identifier, open its single use and read the requirements *around* it —
+    the neighbours are the documentation. `REQUIREMENT_PLAYER_AT_PEACE_X_TURNS_AGO` reads like a
+    peace-duration check; its one use pairs it with a declaration of war, making it a **betrayal**
+    check that a peaceful player may never satisfy. Three attempts were lost to that before anyone
+    read the neighbour. → [effects-collections-catalog.md](effects-collections-catalog.md)
+14. **A numeric threshold the base game never passes.** Some requirements only honour the values
+    Firaxis exercises. `REQUIREMENT_PLAYER_PLOTS_REVEALED_ARE_X` stayed dark at 93.3% and 99.71%
+    and fired at 100 — the only percentage its two base uses pass. If a count-style requirement
+    will not fire, try the shipped number before assuming the mechanism is broken.
+
+## Symptom: a deed/bonus fires, but on the wrong thing
+
+1. **An argument you added is being ignored, and the requirement still passes.** This reads as
+   success, which is why it survives testing. `REQUIREMENT_PLAYER_HAS_X_WAR_SUPPORT` with a bare
+   `Amount` reads *your own* support in isolation, not the contest — it paid out while the player
+   was 2 behind; `MoreThanOpponent="True"` is what makes it a comparison. **Test the negative
+   case**: do the thing that should NOT satisfy the deed and confirm it stays dark. A war-type
+   filter was confirmed the same way — a Surprise War left the marker dark, a Formal War lit it.
+2. **A count requirement that names ONE type does not sum across two.** See
+   `REQUIREMENT_PLAYER_HAS_X_TOWNS_PRODUCING_PROJECT` in
+   [effects-collections-catalog.md](effects-collections-catalog.md): two markers give max(), not the
+   total. Count the objects with `REQUIREMENT_COLLECTION_COUNT_ATLEAST` instead.
 
 ## Symptom: project doesn't appear in the city's build list
 
@@ -158,7 +186,15 @@ before asserting one. Generate it via `python tools/gen-constructibles-catalog.p
    the VisualRemaps crash above: each layer (gameplay DB / text / icons / visual remaps) has its
    own action and its own database.
    → [custom-units.md](custom-units.md#3d-model--the-live-render-portrait-visualremap--its-hard-limit)
-5. **Diagnosis tip:** a runtime crash leaves `Modding.log` *clean* (often ending
+6. **Two `<Argument>` rows with the SAME name on one modifier.** Database.log:
+   `[gameplay] ERROR: UNIQUE constraint failed: ModifierArguments.ModifierId,
+   ModifierArguments.Name` then `Failed to add Modifier (…)` → crash at game load (hit
+   2026-08-01 with two `ModifierId` arguments on an `EFFECT_ATTACH_MODIFIERS` wrapper).
+   The (ModifierId, Name) pair is UNIQUE — an argument name appears ONCE per modifier.
+   Where the engine expects multiple values, pass ONE argument with a **comma-separated
+   list** (the base multi-attach idiom: `<Argument name="ModifierId">A, B, C</Argument>`).
+   → [gameeffects.md](gameeffects.md#the-attach-wrapper)
+7. **Diagnosis tip:** a runtime crash leaves `Modding.log` *clean* (often ending
    "Successfully reconfigured game") with the process dying after — distinct from a
    load-exclusion failure where the mod simply never reaches "Applied."
    → [deploy-and-debug.md](deploy-and-debug.md#reading-the-logs)
