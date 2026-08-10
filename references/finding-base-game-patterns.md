@@ -123,6 +123,41 @@ This is not a diligence problem. It is a sequencing one, and it has a fix:
   opening one. Files that look like variants (`-common`, `-unique`, `-shared`, `-v2`,
   `-tot-`, per-age suffixes) are usually different content, not duplicates. If six files
   share a prefix, know what all six hold before using one.
+
+- **⛔ Grep the shipped XML CASE-INSENSITIVELY.** Attribute spellings are *not* consistent
+  between Ages. Progression-tree nodes carry their art as `IconString=` in Antiquity and
+  Modern but `Iconstring=` (lowercase s) in Exploration. The game's database loader
+  matches column names case-insensitively so it renders perfectly and nothing ever logs a
+  complaint — but a case-sensitive `grep`/`re` **silently drops an entire Age**. Proven
+  2026-08-09: a scan for `IconString="tech_…"` returned 32 tech icons across three Ages
+  and looked like a complete answer; case-insensitive returned 46, and the per-Age split
+  went from 16 / 1 / 17 to 41 / 41 / 47. Assume any attribute may be spelled either way.
+
+- **⛔ The XML is not the whole database — scan `.sql` too, and apply it LAST.** Both games
+  let a mod (and the base game's own text) load rows from SQL as well as XML, and SQL runs
+  *after* the XML, so an `UPDATE` silently overrides what the XML said. Reading only the
+  XML reports pre-update values as if they were final. Proven 2026-08-09 mining Civ VI's
+  *More Great People*: its 88 display names lived in `Localisation.xml` under a **lowercase
+  `tag=`** (uppercase `Tag=` everywhere else in the same file), its effect text lived in an
+  `INSERT INTO EnglishText` inside `6T_Text.sql`, and `6T_Update.sql` carried **32
+  `SET EraType=…` statements** that moved people between eras. An XML-only, case-sensitive
+  pass produced 88 names showing as raw ids and 32 people filed under the wrong era — with
+  no error anywhere. Extend the case-insensitive rule to attribute *names*, not just values,
+  and always ask "does a later file overwrite this row?"
+
+- **⛔ Never hard-code the set of valid values you iterate over.** A render loop or report
+  driven by a fixed list (eras, ages, classes, yields) silently drops every row whose value
+  is outside it, and the output still looks complete. Same session: a canonical eight-era
+  list dropped 12 people who used the Vikings scenario's own `Early`/`Middle`/`Late` eras
+  plus 2 on `ERA_FUTURE` — 14 rows absent from a page that reported "349 people". Derive
+  the set from the data, append anything unrecognised, and assert that every input row is
+  reachable in the output.
+
+- **Sanity-check the COUNT against the structure before reporting it.** The bug above was
+  visible without re-running anything: three Ages each with a full tech tree cannot total
+  32 techs, and one Age returning a single hit is not a result, it is a broken query. When
+  a scan produces a number, state what number the game's structure implies and compare.
+  A count that is silently too low looks exactly like a complete answer.
 - **Class before member.** When a gate names a *class* or *tag*, expand it to its members
   and count them before judging whether it is rare or common.
 - **Whole row before one attribute.** Constructible and unit rows carry many independent

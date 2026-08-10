@@ -859,6 +859,66 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   `html, body` for whole-UI grading (Drongo's colour booster). CSS masks work too:
   `mask-image: url("blp:mask_hex_icon_64px.png")` + `mask-size/position` hex-clips a
   portrait. `@media (experience: mobile)` is a real Coherent media feature.
+- **⛔⛔ SIZE EVERY UI IN `rem`, AND ON THE GAME'S FONT LADDER. Two separate bugs, both silent,
+  both shipped by us before a player caught them.** Reported 2026-08-09 by an E&I user on a
+  high-resolution MacBook: *"the text/UI is so tiny that it's not playable."*
+
+  **(1) `px` does not scale.** `Options → Accessibility → Font Scale` (Extra Small … Extra Large)
+  works by writing `html { font-size: <n>px }` — see `core/ui/themes/default/global-scaling.js`,
+  where `const BASE_FONT_SIZE = 18` and `newScalePx = globalScale / 100 * BASE_FONT_SIZE`. So
+  **`rem` follows the setting and `px` is frozen**, and a high-DPI display raises the same root by
+  another route. Base-game CSS is **8,615 `rem` against 161 `px`**; those 161 are hairline borders,
+  the one thing that should stay px. E&I shipped **156 px against 4 rem** — exactly inverted,
+  including all 22 font sizes. Conversion is `px ÷ 18 = rem`. Reusable converter:
+  `mods/eureka-inspiration/tools/px-to-rem.py <ui-folder> [--apply]` (dry-runs by default, keeps
+  border/outline widths in px, recurses).
+
+  **(2) Converting faithfully is not enough — the sizes themselves must be on the ladder.**
+  `global-scaling.js` defines the only text sizes the game uses:
+
+  | class | px | rem |
+  |---|---|---|
+  | `font-body-xs` | 14 | 0.7778 |
+  | `font-body-sm` | 16 | 0.8889 |
+  | **`font-body-base`** | **18** | **1** ← 124 uses, the standard body size |
+  | `font-title-lg` | 22 | 1.2222 |
+  | `font-title-xl` | 26 | 1.4444 |
+
+  **Nothing in the base game goes below 14px.** E&I had 16 of its 22 font sizes *below* that floor
+  (9–13px), so even after a correct px→rem conversion it still rendered at roughly two-thirds of
+  base-game text at every scale — a constant ratio the player reads as "the mod ignores my
+  accessibility setting." Snap every size to a rung, rounding **up**. Prefer the game's own classes
+  (`font-body-base` etc.) over hand-rolled rem where you control the markup.
+
+  **(3) A PERSISTENT panel will not restyle itself when the player changes the setting mid-game.**
+  Coherent does **not** recompute `rem` in an already-injected stylesheet when `html { font-size }`
+  changes, and the usual `if (document.getElementById('my-style')) return;` guard means the sheet is
+  written once and never again. Transient UI (tooltips rebuilt on hover, popups created per event)
+  picks the new scale up naturally; a dashboard that stays open keeps the sizes it was born with
+  while the whole game rescales around it. The game fires an engine event for exactly this —
+  `screen-options.js` and `global-scaling.js` are its only base-game listeners:
+
+  ```js
+  engine.on('UIFontScaleChanged', () => {
+      document.getElementById('my-style')?.remove();   // drop it...
+      injectStyle();                                   // ...and write it again
+      render();          // ALSO re-render: inline style="..." attributes are rebuilt only by a
+  });                    // render, and a stylesheet refresh cannot reach them
+  ```
+
+  Wrap it in try/catch — a context without `engine` should degrade to the old behaviour, not throw.
+
+  **Testing it needs no exotic hardware.** Both the accessibility dropdown and a high-DPI display
+  converge on the same single lever: `newScalePx` is set either from `globalScale / 100 *
+  BASE_FONT_SIZE` (the dropdown) or from `currentBasis * BASE_FONT_SIZE * autoScaleAdjustment`
+  (computed from the screen), and **both feed the one `html { font-size }` rule**. So proving your
+  UI follows the dropdown proves it follows the display. Set Font Scale to **Extra Large** and
+  compare your text against the base-game label beside it — Extra Small proves nothing, since
+  small-and-frozen looks like small-and-scaled. Then change the setting **with your panel open** to
+  catch (3). Watch for containers that now clip: fixed heights and `overflow:hidden` with thin
+  padding are what break (E&I's progress pill had 1px of vertical padding around text that grew
+  from 11px to 14px).
+
 - **`window.innerWidth` / `window.innerHeight` / `getComputedStyle(document.documentElement).fontSize`
   ✅ WORK** — the reliable way to build screen-relative panels: measure at attach, set inline
   pixel sizes, floor/cap in rem so the game's UI-scale setting is respected. Don't gamble on

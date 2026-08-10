@@ -120,6 +120,30 @@ researched tech/civic node).
    each one. This applies to UI work too: JS API names get the same treatment against
    the installed `Base/modules` source before use.
 
+   **⛔ THE UI GATE — a screen the player opens is NEVER a div you position yourself.**
+   Before writing any UI that shows a panel, read
+   [references/ui-modding.md](references/ui-modding.md) sections on the sub-system dock
+   and custom screens, and use the sanctioned pair: a button via
+   `Controls.decorate('panel-sub-system-dock')` + `panel.addButton({...})`, opening a
+   `Controls.define`'d `Panel` via
+   `ContextManager.push(tag, { singleton: true, createMouseGuard: true })`. **Never**
+   append a `position: fixed` element to the document and poll for readiness. Such an
+   overlay sits above the map, receives every click the engine should have got, and
+   **presents as the game freezing** — the player cannot select a unit, open a menu or
+   end the turn, and nothing in any log says why. It is also built at load rather than
+   on demand. This exact mistake shipped once (2026-08-09) and cost a session; the
+   pattern it should have used was already written down here, and is what
+   `metropolis-ascendant/ui/dock/mad-dock-decorator.js` has always done.
+
+   **⛔ AND NOTHING IN THIS UI IS CLICKED.** A `<div>` with an `addEventListener('click')`
+   is INERT in Civ VII — input is routed through the engine so mouse, keyboard and
+   controller behave identically. Every interactive element is an
+   **`<fxs-activatable>`** (give it `tabindex="0"`) and the event is
+   **`'action-activate'`**. There is no error, no log line, and the element looks
+   perfectly normal: it simply never responds, which reads as "the mod is broken".
+   Same session, same file, second failure — web reflexes do not transfer, so read
+   [references/ui-modding.md](references/ui-modding.md) before writing UI, not after.
+
    **The catalog's USAGE COUNT is data, not decoration. Read it before you build.** An
    identifier used once is unproven, and its single shipped use tells you what it is
    actually *for* — open that use and read the requirements around it. Two silent
