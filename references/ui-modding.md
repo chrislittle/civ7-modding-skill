@@ -923,6 +923,33 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   ✅ WORK** — the reliable way to build screen-relative panels: measure at attach, set inline
   pixel sizes, floor/cap in rem so the game's UI-scale setting is respected. Don't gamble on
   `vw/vh` units.
+- **⛔ A custom panel's header scrolls away once its content outgrows the frame — and the obvious
+  fix causes a worse bug.** `fxs-subsystem-frame` puts your slotted markup in a content area it
+  classes `flex-auto` (`flex: 1 1 auto`) with **no `min-height`**, and a flex item with
+  `min-height: auto` cannot shrink below its content. So the moment your column is taller than the
+  frame, the content area grows past it and the FRAME scrolls, carrying your header and tab bar out
+  of view. Your own `flex: 1 1 auto; min-height: 0` on the inner scroll region never gets a chance,
+  because the box it should fill was never bounded. **The trap is latent** — a panel ships fine for
+  months and breaks on a font-size change, because nothing is wrong until the content grows.
+
+  ⛔⛔ **DO NOT fix it by restyling the frame's content area.** The natural-looking fix
+
+  ```css
+  /* ☠ makes the whole panel FLICKER - do not ship this */
+  .my-frame .subsystem-frame__content { display: flex; flex-direction: column; min-height: 0; }
+  ```
+
+  does cure the scrolling, and it also made Metropolis Ascendant's dashboard flicker so badly it was
+  unusable (in-game, 2026-08-09, confirmed by reverting). Forcing that area into flex puts
+  `fxs-scrollable` — a custom element that measures itself — into a measure → reflow → re-measure
+  loop. **Never change the layout MODE of a base-game element you do not own.**
+
+  The safe direction is to constrain **your own** column instead: measure the non-scrolling parts at
+  attach and set an explicit pixel `max-height` on your scroll region, alongside the existing
+  measured frame sizing (`getComputedStyle(document.documentElement).fontSize`, see the entry
+  below). That changes no layout mode and adds no feedback path. Untested as of writing — the
+  flicker fix was to revert, and the scrolling fault is currently open in MA.
+
 - **Auto flex margins (`margin-left: auto` on a flex child) don't push — the child stays in
   place** (proven 2026-08-01: a header close button styled `margin-left:auto` rendered mid-row).
   Push flex children apart with `flex-grow: 1` on the element that should absorb the space
