@@ -417,6 +417,33 @@ Drawing on the map from a layer:
 
 For UI states that own the whole interaction (placement cursors, choosers):
 
+> ⭐ **"Let the player click a tile" is a solved, VERIFIED-IN-GAME pattern (2026-08-15) — you do not
+> need to build a picker.** Extend the base class and it does the highlighting and click capture:
+> ```js
+> import ChoosePlotInterfaceMode from '/base-standard/ui/interface-modes/interface-mode-choose-plot.js';
+> import { InterfaceMode } from '/core/ui/interface-modes/interface-modes.js';
+> class MyPicker extends ChoosePlotInterfaceMode {
+>   initialize() { return true; }
+>   selectPlot(plot) { this.commitPlot(plot); InterfaceMode.switchToDefault(); return false; }
+>   commitPlot(plot) { /* plot.x, plot.y = the tile the player clicked */ }
+> }
+> InterfaceMode.addHandler("MYMOD_INTERFACEMODE_PICK", new MyPicker());
+> ```
+> Pair it with `<InterfaceModes><Row InterfaceModeType="MYMOD_INTERFACEMODE_PICK" ViewName="Placement"/></InterfaceModes>`
+> — reusing the base **"Placement"** view means you can skip `ViewManager.addHandler` and the harness
+> template entirely. ⚠ **Both halves are required**; the row alone or the handler alone silently does
+> nothing. Enter it from a hotkey by wrapping `HotkeyManager.handleInput` (an exported singleton) and
+> calling `InterfaceMode.switchTo(...)`. Verified end to end: hotkey → mode → click → a building placed
+> on the clicked tile with no unit involved. Shipping precedent: *Detailed Map Tacks* (1295660/3507297712).
+>
+> ⚠⚠ **BUILD THE EXIT BEFORE THE ENTRANCE.** The `Placement` view **hides the normal HUD**, so a mode
+> that can be entered but not left leaves the player on a bare map with no menus (hit in testing).
+> Escape does work via the base class, but do not rely on it alone: give the subclass its own
+> `handleInput` catching `inputEvent.isCancelInput()` / `"sys-menu"` / `"mousebutton-right"`, exit
+> through **one wrapped `leave()` helper** called unconditionally after the commit — so a throw in your
+> placement code cannot strand the player — and make the entry hotkey **toggle**. Three escape hatches
+> is not excessive for a mode that removes the UI.
+
 1. **Register the mode in the gameplay DB** (game-scope `UpdateDatabase`):
    `<InterfaceModes><Row InterfaceModeType="MYMOD_INTERFACEMODE_X" ViewName="MyView"/></InterfaceModes>`
 2. **Add the JS handler**: `InterfaceMode.addHandler('MYMOD_INTERFACEMODE_X', handler)`
@@ -1338,13 +1365,19 @@ Game.PlayerOperations.canStart(owner, "CREATE_ELEMENT", args, false);
   unit via a narrative story's `EFFECT_CITY_GRANT_UNIT`, human-only.)
 
 **⚠ Hard limits — what this does NOT give you:**
-- **`CREATE_ELEMENT` tiles are PLAYER-owned, not city-attached.** The tile shows *your*
-  ownership + the improvement + tile yields, but **no city works or banks them** — it's an
-  orphan outside every city's territory. The only levers that fold a plot into a city's
-  *working* territory are `city.Growth.claimPlot` (gameplay-isolate only, a no-op in a
-  UIScript) and CityCommands `EXPAND` / `PURCHASE` (C++-capped at the 3-hex city radius). So
-  this is **not** a path to working ring-4/5 tiles — that wall stands (see
-  [tile-ownership-and-radius.md](tile-ownership-and-radius.md)).
+- **`CREATE_ELEMENT` on an UNOWNED tile comes out PLAYER-owned, not city-attached** — an orphan
+  outside every city's territory, showing tile yields that no city banks. Nothing UI-reachable folds
+  an unowned out-of-range plot into a city (`city.Growth.claimPlot` is gameplay-isolate only and a
+  no-op in a UIScript; CityCommands `EXPAND`/`PURCHASE` are C++-capped at the 3-hex radius).
+  ⭐ **BUT THIS IS NOT A WALL — corrected 2026-08-15.** Claim the tile into city territory FIRST
+  (the Surveyor's native `UNITCOMMAND_CLAIM_RESOURCE` claims a path of tiles back to the settlement,
+  and they are genuine city land), then `CREATE_ELEMENT` onto it: the district and building attach to
+  the **city**, and the city banks the building's yields — at ring 4/5, with no population assigned,
+  durable across save/reload. Orphaning was an artefact of starting from an unowned tile.
+  ⚠ The op enforces **no** distance cap, **no** placement rules and **no** tech prerequisite, and
+  `canStart` returns `Success:true` regardless — supply every gate yourself.
+  ⛔ The RPC is **queued to the sim**: a read in the same tick as `sendRequest` returns the OLD state.
+  Full chain and caveats: [tile-ownership-and-radius.md](tile-ownership-and-radius.md).
 - Runs as the local player; **MP-desync is unverified** (the RPC is the deterministic
   sanctioned channel, so safer than WorldBuilder writes, but confirm before shipping MP).
 

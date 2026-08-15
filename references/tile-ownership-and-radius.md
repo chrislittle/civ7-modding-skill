@@ -1,12 +1,74 @@
 # Tile ownership, the swap mechanic, and the 3-hex radius
 
+> ## 🏆 SOLVED 2026-08-15 (1.4.2 build 1290193) — READ THIS FIRST
+>
+> **A city CAN build on, bank, and staff tiles at rings 4–5. Proven end to end in-game and durable
+> across save/reload.** Everything below this box that says otherwise is superseded; it is kept
+> because the probe history is still the record of what does *not* work.
+>
+> **The chain:**
+> 1. **Ownership** — the shipped Surveyor's `UNITCOMMAND_CLAIM_RESOURCE` claims "a path of tiles back
+>    to the Settlement", and those path tiles are **genuine city territory** (tooltip names the city).
+> 2. **Construction** — `Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT", {Kind:"CONSTRUCTIBLE",
+>    Type:"BUILDING_…", Location, Owner})` from a mod `<UIScripts>` file places a **building** on such a
+>    tile, and `DISTRICT_URBAN` (`AutoPlace="true"`) materialises beneath it, with a road.
+> 3. **Income** — the city banks the building's yields, itemised in its own breakdown under
+>    *From Buildings*, **with no population assigned to the tile**. (Test: Monument at ring 4 →
+>    `+4 Culture / +2 Influence`, specialists 0.)
+> 4. **Staffing** — once specialists are unlocked, a specialist can be assigned to that distant urban
+>    district **through the ordinary placement UI**, no RPC involved.
+>
+> **⛔ THE LAW THAT WAS WRONG.** "Population assignment is capped at ring 3" is true **only of
+> ACQUIRING land** — `CityCommandTypes.EXPAND`, which claims + improves + populates in one step. It is
+> **NOT** true of assigning a specialist to an urban district the city **already owns**:
+> `city.Workers.GetAllPlacementInfo()` enumerates the city's urban districts **regardless of distance**.
+> The years of "empty outer tiles are a dead end" reasoning came from testing `DISTRICT_RURAL`, the one
+> district class that is **not** `Workable="true"` in districts.xml and therefore genuinely does need a
+> citizen. **Build urban, not rural.**
+>
+> **⚠ WHAT CREATE_ELEMENT DOES NOT ENFORCE — plan for all of it.** No distance cap, no placement rule
+> set, and **no tech prerequisite** (it placed a Monument 12 turns before Masonry was researched).
+> `canStart` returns `Success:true` throughout. A shipped feature must supply every gate itself.
+>
+> **⛔ METHOD LESSON.** These RPCs are **queued to the simulation** — a read in the same tick as
+> `sendRequest` reports the OLD state. A litmus that logged `district now = none` after every step was
+> reading too early; the district existed. Re-read on the next press or on `DistrictAddedToMap`, and
+> never trust a same-tick after-read. (Also: a mod UIScript's `console.log` reaches no log file — read
+> out via an on-screen panel.)
+>
+> **⛔ RURAL IS CLOSED — don't retry it.** `Workable="true"` sits on `DISTRICT_URBAN` and
+> `DISTRICT_CITY_CENTER` and is absent from `DISTRICT_RURAL`, and that is a hard gate: raising a
+> district's specialist capacity with `EFFECT_DISTRICT_ADJUST_WORKER_CAP` (verified firing — urban
+> tiles went `0/1` → `0/3`) still leaves **no rural tile ever offered** in the placement picker.
+> Claiming and improving outer rural tiles both work; nobody can ever be put on them. **Outer land is
+> usable only as URBAN districts.**
+>
+> **Also proven live and data-only:** `EFFECT_UNIT_GRANT_UNASSIGNED_WORKERS` (unit-scoped) grants
+> unassigned population, and `EFFECT_DISTRICT_ADJUST_WORKER_CAP` raises per-tile specialist capacity
+> with plot-level targeting — see section 6.
+>
+> **❌ What does NOT work:** `EFFECT_UNIT_GRANT_FREE_BUILDING_IGNORE` from a fake Great Person places
+> nothing (controlled negative: co-fired 4-population control fired, all four probe buildings unlocked
+> and unbuilt, no placement and no free-build discount). **The UIScript RPC is the only way to put a
+> building on a chosen tile.**
+>
+> **⛔⛔ NEVER `CREATE_ELEMENT` ON AN UNOWNED TILE.** It grants ownership to the **player**, and **no
+> city ever adopts the tile** — not on creation, not over time, and **not even inside ring 3**. Tested
+> across turns with adjacencies 0–2: the tile stays a player-owned orphan and the city's EXPAND picker
+> never offers it again, so seizing effectively deletes a tile from the city's reach. ✅ It is
+> **reversible**: `sendRequest(owner, "DESTROY_ELEMENT", {Kind:"DISTRICT", Owner, LocalID})` releases
+> the tile back to unowned and the city can then expand onto it normally. (That pair is also a complete
+> raze-and-rebuild primitive.) **Only ever place on tiles a city already owns; ownership beyond ring 3
+> comes from the Surveyor's claim and nothing else.**
+
 Everything here was extracted from the **installed base-game code** (not docs), plus
 the Civ6 "Neighborhood Tall Extension" mod source. Trust it over wiki/forum claims,
 which are stale or wrong on this topic.
 
-> **🏁 FINAL STATUS (2026-07-04, full Civ6-vs-Civ7 engine re-audit + probe v3 in-game):
-> NO data-only claim/ownership primitive exists on 1.4.1 — this is now EXHAUSTIVE, not
-> provisional.** The last untested shape, `EFFECT_GRANT_PLOT` with a UNIT as modifier owner
+> **🏁 STATUS OF THE *DATA-ONLY CLAIM* QUESTION (2026-07-04, full Civ6-vs-Civ7 engine re-audit +
+> probe v3 in-game) — still current, and narrower than it sounds: NO data-only claim/ownership
+> primitive exists. (Ownership is nevertheless SOLVED, by the Surveyor's native claim — see the box
+> above. This section is about granting a plot from GameEffects, which remains dead.)** The last untested shape, `EFFECT_GRANT_PLOT` with a UNIT as modifier owner
 > (Civ 6's native contract: dummy unit spawned at the target plot, birth modifier grants the
 > plot it stands on), was probed 2026-07-04 via UnitAbilityModifiers on UNIT_SCOUT
 > (run-once-at-creation on a story-spawned unit at an unowned dist-4/5 tile + continuous ±
@@ -271,10 +333,13 @@ native claim that works — the Prospector's resource claim — deployed for tal
 - **Ability transfers to ANY unit** via a `TypeTags` row tagging it `UNIT_CLASS_PROSPECTOR` (PROVEN:
   Explorer test, Modern). The unit→command link is automatic through the charged ability (the
   `units.xml` UnitType+Command row is just an `AIUnitPrioritizedActions` AI hint, not the grant).
-- **Empty claimed tiles stay inert:** a city CANNOT work/improve a tile beyond ring 3 (range-3 caps
-  *working*, not just claiming — a citizen could not be assigned to a claimed desert tile in-game). A
-  per-type `EFFECT_PLOT_ADJUST_YIELD` lands on the tile but is never collected; **no "yield per owned
-  tile/terrain" effect exists**. So only resource tiles (which self-improve via extraction outpost) pay.
+- **Empty claimed tiles stay inert:** ⛔ **SUPERSEDED 2026-08-15 — see the box at the top.** What is
+  still true: a per-type `EFFECT_PLOT_ADJUST_YIELD` on an unworked RURAL tile is never collected, and
+  **no "yield per owned tile/terrain" effect exists**. What was wrong: the conclusion that outer tiles
+  can therefore never pay. Give the tile an **urban** district and a **building** (via `CREATE_ELEMENT`)
+  and the city banks it with no citizen at all; a specialist can then be placed there through the normal
+  UI. The dead end was `DISTRICT_RURAL` specifically — the only district class not marked
+  `Workable="true"`.
 - **Grant a unit (with an ability):** `EFFECT_CITY_GRANT_UNIT` (arg `UnitType`) grants a unit to a city;
   `EFFECT_GRANT_UNIT_OF_CLASS_AND_APPLY_ABILITY` grants a unit AND applies an ability (Great-Person
   grants use it, `run-once`, node-gated). Charge supply: `EFFECT_GRANT_UNIT_ABILITY_CHARGE`
@@ -299,16 +364,54 @@ and discovery sites spawn ≥3 tiles from major starts = exactly the ring-3–6 
 discovery-investigation story can seed a Surveyor-claimable resource there, all data-only. Full system
 writeup: [narrative-events.md](narrative-events.md).
 
-**UI-isolate RPC route — TRIED & CLOSED 2026-07-10 (wall reconfirmed):** a shipping mod's
+## 6. The population/worker effects (data-only)
+
+- **`EFFECT_UNIT_GRANT_UNASSIGNED_WORKERS` — LIVE, verified in-game 2026-08-15.** Grants unassigned
+  population the player then places. Wire it the way the base game's single shipped use does
+  (`GREATPERSON_ONE_SPECIALIST`, Al-Jazari, `age-exploration/data/greatpeople-gameeffects.xml`):
+  `collection="COLLECTION_OWNER"`, `run-once` + `permanent`, one `Amount` argument, reached by a
+  `GreatPersonIndividualActionModifiers` row with
+  `AttachmentTargetType="GREAT_PERSON_ACTION_ATTACHMENT_TARGET_UNIT_GREATPERSON"`. Fires on the Great
+  Person's Activate press. Pure GameEffects — no UIScript, no RPC, no desync exposure.
+  **Scope:** the population arrives *unassigned* and is placed through the normal picker, so it feeds
+  the settlement's existing tile set; it is a free-population lever, not a reach lever.
+- ⛔ **`EFFECT_PLAYER_GRANT_UNASSIGNED_WORKERS` is a DEAD STRING** — binary-present, **zero uses in any
+  base or DLC data**. A four-spelling argument sweep against it returned nothing, which proved only that
+  the token has no handler. **Lesson worth generalising: before sweeping argument names on a
+  binary-only token, check whether any shipped data uses it at all — and check for a sibling with a
+  different scope prefix (`EFFECT_UNIT_…` vs `EFFECT_PLAYER_…`). The live twin was one grep away.**
+- **Specialist unlock (Antiquity)** = tech node `NODE_TECH_AQ_CURRENCY`, which carries
+  `MOD_AQ_SPECIALIST_CAP_INCREASE` (`EFFECT_CITY_ADJUST_WORKER_CAP` +1, `COLLECTION_PLAYER_CITIES`).
+  Until a city's `Workers.getCityWorkerCap()` exceeds 0 there are no specialists at all, and
+  `canStart(ASSIGN_WORKER)` returns false for **every** plot — a confound that will silently invalidate
+  any early-game specialist probe.
+- **`EFFECT_DISTRICT_ADJUST_WORKER_CAP` — LIVE, verified in-game 2026-08-15.** Per-district specialist
+  capacity, `collection="COLLECTION_PLAYER_DISTRICTS"`, arg `Amount`, continuous (never `run-once`),
+  delivered through the standard attach wrapper. Takes plot `SubjectRequirements`, so it can be
+  targeted (base: `TRAIT_MOD_NEGARA_SPECIALIST_CAP_INCREASE`, coastal only). Unfiltered `Amount 2`
+  took tiles from `Specialists 0/1` to `0/3`. ⚠ Read it from the **tile tooltip** — the City Details
+  "allows N Specialist per Tile" line and `getCityWorkerCap()` are city-wide and ignore district
+  bumps. ⚠ Does not open rural (see the box at the top).
+- **`PlayerOperationTypes.ASSIGN_WORKER`** (`{ Location: plotIndex, Amount: 1 }`,
+  `interface-mode-acquire-tile.ts`) is the specialist-placement RPC — plot-indexed, no city id, no range
+  argument. The UI filters candidates through `PlotWorkersManager.workablePlotIndexes` *before* calling
+  `canStart`, so a tile missing from the picker is not proof the native op refuses it.
+
+**UI-isolate RPC route — 2026-07-10, and REVISED 2026-08-15 (see the box at the top — the orphan
+problem is solved by claiming the tile first):** a shipping mod's
 `<UIScripts>` file *can* write durable authoritative state via the sanctioned RPC
 `Game.PlayerOperations.sendRequest(owner,"CREATE_ELEMENT",{Kind:"DISTRICT",Type:"DISTRICT_RURAL",
 Location,Owner})` — verified to create a real Rural district + Farm that survives save/reload
-(details: [ui-modding.md](ui-modding.md) section 6). BUT the created tile is **player-owned and
-orphaned — no city works or banks it**, because nothing UI-reachable folds an out-of-range plot
-into a city's *working* territory (`claimPlot` is gameplay-isolate only; `EXPAND`/`PURCHASE` are
-ring-3 capped). And `WorldBuilder.MapPlots.setOwnership` from a UIScript is inert/transient (no
-border, no yield, no persistence). So the ring-4/5 **yield** goal stays blocked on the same
-city-territory wall — the RPC is a "place a district anywhere" primitive, not a claim path.
+(details: [ui-modding.md](ui-modding.md) section 6). On an **UNOWNED** tile the result is
+**player-owned and orphaned** — no city banks it — because nothing UI-reachable folds an out-of-range
+plot into a city's territory (`claimPlot` is gameplay-isolate only; `EXPAND`/`PURCHASE` are ring-3
+capped). And `WorldBuilder.MapPlots.setOwnership` from a UIScript is inert/transient (no border, no
+yield, no persistence).
+
+⭐ **THE FIX, 2026-08-15: don't start from an unowned tile.** Let the **Surveyor's claim** fold the
+tile into city territory first, then `CREATE_ELEMENT` onto it — the result attaches to the **city**,
+not the player, and the city banks it. Orphaning was an artefact of the starting state, not a property
+of the RPC.
 
 Design rule worth carrying into any use of these mechanics: do NOT gate static-world effects
 (appeal, wonder/terrain adjacency) behind per-Age tech/civic nodes — they would wrongly blink

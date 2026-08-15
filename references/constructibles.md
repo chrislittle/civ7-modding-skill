@@ -120,6 +120,34 @@ A buildable building needs rows in **four** tables (miss the `Buildings` row and
   (JS production-list filter). (You *can* still gate a `<Modifier>` the building fires — just not the building's
   own buildability.)
 
+## Building on a MOUNTAIN, and what `Constructible_ValidTerrains` actually means
+
+**`Constructible_ValidTerrains` is an EXCLUSIVE whitelist**, and it is the entire mechanism for placing a
+constructible on a mountain. No modifier, no script - one companion-table row per allowed terrain.
+
+- A constructible with **no** rows in the table is **unrestricted** by it.
+- A constructible **with** rows may be placed **only** on the terrains listed.
+
+**⚠ THE TRAP:** adding only `TERRAIN_MOUNTAIN` to an existing building does not *also* allow mountains - it
+**restricts that building to mountains and nothing else**. List every terrain it must remain valid on
+(typically `TERRAIN_FLAT`, `TERRAIN_HILL`, `TERRAIN_MOUNTAIN`).
+
+**Verified 2026-08-11** against the installed base + DLC:
+
+| Evidence | Reading |
+|---|---|
+| Only **53 of 251** constructibles appear in the table at all | absence cannot mean "buildable nowhere", so absence = unrestricted |
+| `BUILDING_ANCIENT_WALLS` lists exactly COAST + FLAT + HILL | the list is the complete permitted set - walls genuinely cannot take a mountain |
+| `WONDER_MACHU_PIKCHU` lists **only** `TERRAIN_MOUNTAIN` | which is exactly why it is mountain-only in play |
+
+**Two shipped mountain precedents, and only two:** `IMPROVEMENT_HIGHLAND_POWER_STATION`
+(`DLC/nepal/modules/data/constructibles-modern.xml:30`) and **`WONDER_MACHU_PIKCHU`**. The wonder one is the
+notable half - **a WONDER can legally occupy a mountain tile**, so mountain placement is not improvements-only.
+
+When the rows are a cross-product over ids that may not exist in every Age (two Age-scoped walls, say), emit them
+with the self-guarding SQL `INSERT ... SELECT` in [troubleshooting.md](troubleshooting.md) rather than literal
+`<Row>`s - it cannot fail a foreign key, so one `criteria="always"` group covers all three Ages.
+
 ## The production pop-out renders `Tooltip`, NOT `Description`
 
 For a building/constructible, the in-game **info pop-out** (the panel beside the production list) shows the

@@ -264,10 +264,22 @@ tall/yield mods and have non-obvious quirks:
   or a specific type. Args `YieldType` + `Tag` (`SCIENCE`/`CULTURE`/`GOLD`/…) **or**
   `ConstructibleType`. This is the **only** way to target yields by building domain
   (base proof: `ATTACH_CULTURE_ON_CULTURE_BUILDINGS`).
-- **`EFFECT_CITY_ADJUST_WORKER_CAP`** — raise the per-district specialist cap. Arg
-  `Amount` only — it's **always city-wide and cannot be scoped to a building or class**
-  (the cap is one shared pool). Don't try to make a domain-specific specialist cap; it
-  doesn't exist.
+- **`EFFECT_CITY_ADJUST_WORKER_CAP`** — raise the per-tile specialist cap for a whole city.
+  Arg `Amount` only; it is **city-wide and cannot be scoped to a building or class**.
+- **`EFFECT_DISTRICT_ADJUST_WORKER_CAP` — the SCOPED sibling (verified in-game 2026-08-15).**
+  ⛔ Corrects the older note here that a domain-specific specialist cap "doesn't exist" — that
+  applies to the CITY effect only. This one is `collection="COLLECTION_PLAYER_DISTRICTS"`, arg
+  `Amount`, and takes plot `SubjectRequirements`, so capacity **can** be targeted per district
+  (base proof: `TRAIT_MOD_NEGARA_SPECIALIST_CAP_INCREASE` filters to coastal plots). Proven at
+  scale: unfiltered `Amount 2` took tiles from `Specialists 0/1` to `0/3`. Continuous — no
+  `run-once` (it must re-evaluate as districts appear). Delivered via the standard attach wrapper.
+  ⚠ **READ THE RESULT FROM THE TILE TOOLTIP** (`Specialists x/N`). The City Details line "This City
+  currently allows N Specialist per Tile" and `city.Workers.getCityWorkerCap()` are both **city-wide**
+  figures that do **NOT** reflect district-scoped bumps — they kept reading 1 while tiles read 0/3.
+  ⚠ It does **not** make RURAL districts workable: `districts.xml` gives `Workable="true"` to
+  `DISTRICT_URBAN` and `DISTRICT_CITY_CENTER` only, and that gate holds regardless of cap — no rural
+  tile is ever offered in the placement picker. See
+  [tile-ownership-and-radius.md](tile-ownership-and-radius.md).
 - **`EFFECT_CITY_ADJUST_RESOURCE_CAP`** — raise a settlement's resource-slot capacity (more
   assignable resources). Arg `Amount` only. Used on `COLLECTION_PLAYER_CITIES` (with
   `REQUIREMENT_CITY_IS_CITY`), capital, or owner (base proof: Qing capital +2, Monopolies +1).

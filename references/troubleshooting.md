@@ -374,7 +374,30 @@ NEVER reference age-specific ids from a later age. An Exploration start crashed 
 `Adjacency_YieldChanges.AdjacentConstructible="BUILDING_MUSEUM"` row shipped in a shared
 per-age-loaded file.
 
-**Fix:** split such rows by age — each age's action group loads only rows referencing ids that
+**⭐ Fix B - SELF-GUARDING SQL (often better than splitting).** Instead of enumerating ids in XML `<Row>`s,
+write the rows with a SQL `INSERT ... SELECT` that **reads its own keys out of the live database**. A row can
+then only be generated for something that actually exists in THIS age, so the foreign key cannot fail, and one
+`criteria="always"` action group covers every age:
+
+```sql
+INSERT OR REPLACE INTO Constructible_ValidTerrains (ConstructibleType, TerrainType)
+SELECT c.ConstructibleType, t.TerrainType
+FROM   Constructibles c CROSS JOIN Terrains t
+WHERE  c.ConstructibleType IN ('IMPROVEMENT_HAN_GREAT_WALL', 'IMPROVEMENT_MING_GREAT_WALL')
+  AND  t.TerrainType       IN ('TERRAIN_FLAT', 'TERRAIN_HILL', 'TERRAIN_MOUNTAIN');
+```
+
+In an Antiquity game the Ming wall simply is not in `Constructibles`, so no row is emitted for it and nothing
+breaks; in Exploration/Modern both appear. Prefer this whenever the rows are a **cross-product of ids that may
+or may not exist** in a given age; prefer Fix A when each age genuinely needs *different values* rather than the
+same values over whichever ids are present. Source: the Workshop mod *Great Wall on Mountains* (3777474032),
+whose author hit this exact rollback; the pattern is theirs, verified against our own FK trap above.
+
+⚠ Related silent failure from the same mod's notes: a `UnitAbilityModifiers` row naming a **ModifierId that does
+not exist** rolls the WHOLE action group back with no error - the mod loads and does nothing. Same class as the
+FK rollback: check every cross-file id reference by name, both directions.
+
+**Fix A:** split such rows by age — each age's action group loads only rows referencing ids that
 exist in THAT age (its own + earlier ages' persistent content). Generator pattern: emit the rows
 into the per-age Database file, parameterized by the age's id. Corollary when writing ANY new
 row: check the referenced id's defining module/age in the constructibles catalog first — the

@@ -180,6 +180,7 @@ W(f"> (`py -3`). **{len(defs)} constructibles; {sum(1 for c in defs if adj_apply
 W("")
 W("## Gotchas (read first)")
 W("")
+W("- **`Constructible_ValidTerrains` is an EXCLUSIVE whitelist** - a constructible WITH rows may be placed ONLY on the terrains listed; one with NO rows is unrestricted. Adding only TERRAIN_MOUNTAIN RESTRICTS a building to mountains rather than also allowing them. Two shipped mountain precedents: IMPROVEMENT_HIGHLAND_POWER_STATION and WONDER_MACHU_PIKCHU - so a WONDER can occupy a mountain. Full reasoning in constructibles.md.")
 W("- **Land vs Water buildings cannot share/quarter a tile.** A *water* building sits on its own **coast / navigable-river")
 W("  tile** (`RiverPlacement=OFF_COAST`/`ANCHORED`, or `TerrainType` limited to `TERRAIN_COAST`/`_OCEAN`/`_NAVIGABLE_RIVER`).")
 W("  A *land* building sits on a land Urban tile. So e.g. **Market (land)** and **Lighthouse (water, `OFF_COAST`+`TERRAIN_COAST`)**")
