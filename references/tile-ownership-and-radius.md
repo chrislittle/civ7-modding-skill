@@ -9,9 +9,29 @@
 > **The chain:**
 > 1. **Ownership** — the shipped Surveyor's `UNITCOMMAND_CLAIM_RESOURCE` claims "a path of tiles back
 >    to the Settlement", and those path tiles are **genuine city territory** (tooltip names the city).
-> 2. **Construction** — `Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT", {Kind:"CONSTRUCTIBLE",
->    Type:"BUILDING_…", Location, Owner})` from a mod `<UIScripts>` file places a **building** on such a
->    tile, and `DISTRICT_URBAN` (`AutoPlace="true"`) materialises beneath it, with a road.
+> 2. **Construction** — from a mod `<UIScripts>` file, on a tile the city ALREADY OWNS:
+>    ```js
+>    const cityID = GameplayMap.getOwningCityFromXY(loc.x, loc.y);   // the adopting city
+>    // 1) urban district FIRST if the tile is still rural, 2) then the building. BOTH need Parent.
+>    Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT",
+>        {Kind:"DISTRICT", Type:"DISTRICT_URBAN", Location:loc, Owner:owner, Parent:cityID});
+>    Game.PlayerOperations.sendRequest(owner, "CREATE_ELEMENT",
+>        {Kind:"CONSTRUCTIBLE", Type:"BUILDING_…", Location:loc, Owner:owner, Parent:cityID});
+>    ```
+>    ⛔⛔ **`Parent` NAMES THE CITY THAT ADOPTS THE ELEMENT, AND OMITTING IT IS THE #1 CAUSE OF THE
+>    "ORPHAN" FAILURE.** Without it the building is created and RENDERS CORRECTLY, but **no city banks
+>    its yields and the build menu still offers the building** — the city does not know it exists.
+>    With it, the city's own breakdown itemises it under *From Buildings* and it survives save/reload
+>    (proven in play 2026-08-19, 1.4.2: `Monument +3 Culture / +2 Influence` on a RING-4 tile).
+>    ⚠ **WHY THIS IS EASY TO MISS:** `base-standard/ui/tuner-input/tuner-input.js` contains BOTH shapes —
+>    its **Map Panel** branch (place at a clicked location) omits `Parent`, while its **City Panel**
+>    branches (lines ~226-287) pass `args.Parent = …selectedCity`. Copying the map-placement branch,
+>    which is the one whose framing matches "put a thing on a tile", silently gives you the orphan form.
+>    ➡ **METHOD RULE: when lifting an API's argument shape from an example, read EVERY call site of that
+>    API in the file — the optional arguments live in the branches whose framing does not match yours.**
+>    ⛔ And on owned-but-RURAL ground the **urban district must come first**: sending only the
+>    CONSTRUCTIBLE attaches it to the RURAL district, so the tile still reads "Rural", the building gets
+>    NO model, and the city files its yields under *From Improvements* instead of *From Buildings*.
 > 3. **Income** — the city banks the building's yields, itemised in its own breakdown under
 >    *From Buildings*, **with no population assigned to the tile**. (Test: Monument at ring 4 →
 >    `+4 Culture / +2 Influence`, specialists 0.)
@@ -53,7 +73,12 @@
 > building on a chosen tile.**
 >
 > **⛔⛔ NEVER `CREATE_ELEMENT` ON AN UNOWNED TILE.** It grants ownership to the **player**, and **no
-> city ever adopts the tile** — not on creation, not over time, and **not even inside ring 3**. Tested
+> city ever adopts the tile** — not on creation, not over time, and **not even inside ring 3**.
+> ⚠⚠ **RE-VERIFY THIS: every test behind it was run WITHOUT the `Parent` argument** (see above), and on
+> OWNED ground the missing `Parent` alone was enough to produce exactly this "orphan" signature. The
+> rule is probably still true in some form — a city plausibly cannot adopt a tile it does not own — but
+> it is now **UNVERIFIED rather than known**, and should be re-tested with `Parent` before being relied
+> on. Tested
 > across turns with adjacencies 0–2: the tile stays a player-owned orphan and the city's EXPAND picker
 > never offers it again, so seizing effectively deletes a tile from the city's reach. ✅ It is
 > **reversible**: `sendRequest(owner, "DESTROY_ELEMENT", {Kind:"DISTRICT", Owner, LocalID})` releases

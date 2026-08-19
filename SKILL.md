@@ -96,6 +96,28 @@ researched tech/civic node).
 
 ## Authoring workflow
 
+0. **⛔⛔ SEARCH `Base/modules` **AND** `DLC` — EVERY TIME. A `Base`-only grep will tell you a
+   capability does not exist when it does.** The install has two trees:
+   ```
+   <install>/Base/modules/     base-standard, age-antiquity, age-exploration, age-modern
+   <install>/DLC/              ~50 packs (civs, leaders, wonders) EACH with its own data/
+   ```
+   **The DLC tree defines ~70 `EFFECT_*` that appear NOWHERE in Base**, plus its own unit commands,
+   charged abilities and requirements. Concrete cost of getting this wrong (2026-08-18): a full sweep
+   for "can anything claim territory?" was run against `Base` only and concluded *nothing exists* —
+   while the Nepal pack ships `UNITCOMMAND_CLAIM_MOUNTAIN`, a second claim vector, and Qajar ships
+   `EFFECT_CITY_ADJUST_YIELD_PER_UNDER_SETTLEMENT_CAP`, a native tall mechanic. Both were missed.
+   ```bash
+   # the only correct shape for an existence check
+   grep -rho 'EFFECT_[A-Z_]*' --include=*.xml Base/modules DLC | sort -u
+   # and to see what is DLC-ONLY (the interesting set):
+   comm -23 <(grep -rho 'EFFECT_[A-Z_]*' --include=*.xml DLC | sort -u)             <(grep -rho 'EFFECT_[A-Z_]*' --include=*.xml Base/modules | sort -u)
+   ```
+   ⚠ **"It isn't in the base game" is NOT a finding until you have grepped DLC too**, and a
+   DLC-only identifier is a **dependency**: a mod using one breaks for players without that pack, so
+   gate it behind criteria or design a fallback. The generated catalogs in `references/` already cover
+   base+DLC — prefer them, and only mine raw XML for the gap.
+
 1. **Start from a real base-game example, never from guessed names.** Effect names,
    requirement names, and especially **argument names are not guessable**
    (`EFFECT_ADJUST_CITY_IGNORE_UNHAPPINESS_EFFECT` takes `UnhappinessEffect`, not
@@ -214,6 +236,7 @@ the "DIAGNOSE before you rebuild" section + the two ready-made probes in
 | [references/finding-base-game-patterns.md](references/finding-base-game-patterns.md) | **Two parts.** (1) How to grep the base game for real EFFECT_*/REQUIREMENT_*/COLLECTION_* names and argument names — never invent them. (2) **Step 0: enumerate the space before narrowing** — list every file in the folder, every member of a class, every argument on the row, *then* filter; state the boundary of what you searched. Then **never assume semantics** — seven checks (what it counts, what it is scoped to, engine-vs-convention, how big the gate really is, is it default behaviour, data id vs player-facing name, version-stamping) plus a lookup map of where each system's truth lives, and a **gateway table** — the content locked behind a commitment (city-state suzerainty, town specialisation, ideology, node masteries, civ-unique trees, age-transition cards, crisis stages) that a requirement-name sweep will never surface. Read part 2 before designing on any mechanic. |
 | [references/accomplishment-design.md](references/accomplishment-design.md) | **Designing earn-triggers (Triumphs / quest deeds / card unlocks) that reward SKILL, not next-turn mashing.** The 7 archetypes of a good accomplishment (spatial optimization · **adversity→asset** · placement context · deep investment · setup chain · timing window · sacrifice/tradeoff) with the Civ 6 Historic-Moment each echoes + the Civ 7 requirement tools; the anti-patterns (count-to-N, opaque-relative, happens-naturally, happiness-stage, map-luck); **classify candidates by what the player must ENGAGE with, not by mechanic shape** — filing by verb ("build N of X") hides the prerequisite chain that makes one candidate interesting and another filler; the **4 design tests** (planning / visibility / not-mindless / flexible); and the content-budget reality (a yield-lane has ~2–4 buildings, a tile holds 2 → **decouple trigger from the reward's lane**). Read before authoring any accomplishment/Triumph/quest content. |
 | [references/civ6-civ7-mechanic-delta.md](references/civ6-civ7-mechanic-delta.md) | **Civ VI ↔ Civ VII mechanic delta = the feasibility gate.** Before porting a Civ-VI-inspired idea, check whether the mechanic even exists in Civ VII: Part A marks every major Civ VI subsystem ✅ present / 🔷 different-shape / ❌ absent (Great People/GPP, Great General, Governors, Amenities, Housing, Chop/Harvest, Tourism, World Congress, Loyalty, Envoys, Era Score…) with the grounded reason; Part B lists Civ VII-native systems with no Civ VI analog (the fresh design space); plus a worked Great-General-vs-Commander example. **Two caveats baked in: name-match ≠ mechanic-match (`EFFECT_DAE_*` = Influence diplomacy actions), and absent-keyword ≠ impossible (great people are a DATA TABLE, not an EFFECT_ — always check tables too).** Read before designing any card/bonus inspired by Civ VI. |
+| [references/dlc-only-identifiers.md](references/dlc-only-identifiers.md) | ⛔⛔ **The 68 `EFFECT_*`, 38 `REQUIREMENT_*`, unit command and charged abilities that exist ONLY in `DLC/` and appear NOWHERE in `Base/modules`.** Read before concluding "the game can't do X" — a Base-only grep returns a confident, WRONG negative. Leads with the base+DLC grep recipe, then the standouts: `EFFECT_CITY_ADJUST_YIELD_PER_UNDER_SETTLEMENT_CAP` (a native TALL reward — yield per settlement under the cap), `EFFECT_ADJUST_CITY_LIMIT`, `REQUIREMENT_PLOT_HAS_NUM_CONSTRUCTIBLES` (gate on buildings-per-tile), `UNITCOMMAND_CLAIM_MOUNTAIN` (a SECOND claim vector + the documented corridor rule) and `ChargedUnitAbilities.ConstructibleType` (a data lever on what a claim builds). ⚠ A DLC-only identifier is a DEPENDENCY — gate it or provide a fallback. |
 | `references/effects-collections-catalog.md` *(generate locally — see note below)* | **Authoritative master list** of every EFFECT_*/COLLECTION_*/REQUIREMENT_* + YieldType **actually used** by the installed game, with per-effect/requirement argument names + usage counts and player-rooted (★) collection flags. Generate via [tools/gen-effects-catalog.py](tools/gen-effects-catalog.py). Confirm a name/argument exists here before building, instead of guessing or trusting external/stale lists. |
 | `references/cards-suzerain-governments-catalog.md` *(generate locally — see note below)* | **Every Tradition/Policy/Crisis card + Suzerain (city-state) bonus + government** shipped by base + all DLC, with resolved English effects, tagged by slot type / age / civ source (533 cards + 126 suzerain + 13 governments). Confirm what a base/DLC card already does, and keep a mod's new cards **new-&-unique** — don't duplicate/closely-mirror anything here. Generate via [tools/gen-cards-catalog.py](tools/gen-cards-catalog.py). |
 | `references/civ6-policies-governments-catalog.md` *(generate locally — see note below)* | **INSPIRATION**: all Civ VI policy cards (by slot) + governments, base + Rise&Fall + Gathering Storm (136 policies + 13 governments). Mine for ideas, but run each through `civ6-civ7-mechanic-delta.md` first (many Civ VI systems don't exist in Civ VII). Generate via [tools/gen-civ6-cards-catalog.py](tools/gen-civ6-cards-catalog.py) (needs a Civ VI install; optional). |

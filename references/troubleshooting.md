@@ -175,6 +175,11 @@ before asserting one. Generate it via `python tools/gen-constructibles-catalog.p
    override with the upsert verb — `<LocalizedText><Replace Tag="…" Language="en_US"><Text>…
    </Text></Replace></LocalizedText>` (the exact pattern base l10n files use). Use `<Row>` only
    for NEW tags. (This crash shows in **Modding.log**, not Database.log.)
+   ⛔ **And `<Update>` on `EnglishText` takes the whole mod down**: `cannot modify EnglishText
+   because it is a view` (hit 2026-08-16 — the mod stopped loading entirely, and the innocent
+   mod being blamed alongside it cost a further round). **`EnglishText` is a VIEW over
+   `LocalizedText`, not a table** — it is writable by INSERT only. Anything that edits an
+   existing string must target `<LocalizedText>` with an explicit `Language="en_US"`.
 4. **`VisualRemaps` loaded via `<UpdateDatabase>`.** Database.log: `no such table: VisualRemaps
    … In XMLSerializer while updating table VisualRemaps from file …`. `VisualRemaps` isn't a
    gameplay-DB table — it has its **own action**, `<UpdateVisualRemaps>`. Move the remap file out

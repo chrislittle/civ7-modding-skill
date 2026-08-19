@@ -24,6 +24,7 @@ Everything in this reference is distilled from shipping, working Steam Workshop 
 - [Modinfo wiring for UI mods](#modinfo-wiring-for-ui-mods)
 - [The three patch techniques (prefer the least invasive)](#the-three-patch-techniques)
 - [Custom screens and panels](#custom-screens-and-panels)
+- [⭐ Reuse the game's parts, don't imitate them](#-reuse-the-games-parts-dont-imitate-them)
 - [Lenses and lens layers](#lenses-and-lens-layers)
 - [Interface modes and views](#interface-modes-and-views)
 - [Hotkeys](#hotkeys)
@@ -380,6 +381,113 @@ For a two-state pill (e.g. available vs earned) just swap between two classes.
   `custom-pantheons.md` (works for any custom raster icon, not just pantheons).)
 - A node's **hover tooltip carries no node id**; link it to its node by finding the card
   that currently has a `hover` class and reading that card's `type`.
+
+## ⭐ Reuse the game's parts, don't imitate them
+
+**The law (learned expensively, 2026-08-17): if the shipping UI already draws the thing you want, find
+that element or class and instantiate it. Hand-written HTML/CSS that imitates the game's look needs
+endless restyling, hits the engine's CSS subset, and still reads as a mod bolted on.** Before writing a
+panel, grep `Base/modules` for a component that already does the job — most of them are driven purely by
+`data-*` attributes, so `document.createElement` + `setAttribute` is the whole integration.
+
+### `production-chooser-item` — the real production row, free
+
+`base-standard/ui-next/components/production-chooser-item.js`. A `defineLegacyComponent` element whose
+entire input is `data-*` attributes. Creating one gets you the 64px icon, uppercase title, ageless pill,
+base-yield icons, turn cost with the timer glyph, hover/focus/select chrome, audio, **and the full
+production tooltip on hover** — none of which you write.
+
+```js
+import '/base-standard/ui-next/components/production-chooser-item.js';
+const el = document.createElement('production-chooser-item');
+el.setAttribute('data-name', def.Name);                 // LOC key; composed for you
+el.setAttribute('data-type', def.ConstructibleType);    // drives the icon AND the tooltip
+el.setAttribute('data-category', 'buildings');          // buildings|units|projects|wonders
+el.setAttribute('data-is-purchase', 'false');
+el.setAttribute('data-cost', String(turns));            // ⚠ TURNS when not a purchase, GOLD when it is
+el.setAttribute('data-is-ageless', ageless ? 'true' : 'false');
+el.setAttribute('data-info-display-type', 'base-yield');
+el.setAttribute('data-base-yields', JSON.stringify([{ yieldType, value }]));
+```
+
+The authoritative attribute mapping is `updateProductionChooserItemElement` in
+`base-standard/ui/production-chooser/panel-production-chooser.js` — copy from there, not from guesswork.
+Turns come from `city.BuildQueue.getTurnsLeft(type)`.
+
+- **Activation event is `chooser-item-selected`** (`ChooserItemSelectedEventName`, defined in
+  `core/ui/components/fxs-chooser-item.js`), and it **bubbles** — put one listener on the list container
+  and read `ev.target.closest('[data-your-key]')` rather than wiring every row.
+- ⚠ **Selected state is internal to `ChooserItem` and is NOT exposed as a data attribute.** You cannot
+  push a row into the selected look from outside. Either let one click be the commit (which is what the
+  production menu itself does) or track selection yourself in a separate element.
+
+### Frames, buttons, and the rest of the vocabulary
+
+- **`fxs-frame`** (`core/ui/components/fxs-frame.js`) is the ornate bordered box. `frame-style` =
+  `f1` (default, filigree) / `f2` / `simple`; `no-filigree="true"`, `filigree-class` (default `mt-8`),
+  `top-border-style` = `b1`/`b2`. Children are redirected into its content div automatically.
+- **`fxs-button`** takes `caption`, `disabled`, `action-key`, and emits `action-activate`. Siblings:
+  `fxs-hero-button`, `fxs-icon-button`, `fxs-text-button`, `fxs-close-button`, `fxs-minimize-button`.
+- `img-tooltip-bg` + `img-tooltip-border` is the *small contextual card* chrome — correct for a tooltip,
+  too flat when the ask is "a real popup with a box".
+
+### Sprite grids: the two-part map vocabulary
+
+Map chips are **circles** (slots) and **houses** (yields), and they are drawn by different calls. Text
+may go inside a circle; **an icon never does** — cramming a yield glyph into a pip is what makes chips
+look like they are colliding.
+
+Do not hand-roll a grid. Instantiate the game's own visualizer, which keeps **two** grids (background
+art, foreground glyphs) so a chip's parts layer instead of fighting:
+
+```js
+import { YieldChangeVisualizer } from '/base-standard/ui/lenses/layer/yield-change-visualizer.js';
+const vis = new YieldChangeVisualizer('MyMod_Chips');   // creates MyMod_Chips_Background/_Foreground
+vis.setVisible(true);
+vis.addSprite(loc, 'specialist_tile_pip_full', {x,y,z}, {scale});
+vis.addText(loc, '5', {x,y,z}, { fonts:['TitleFont'], fontSize:5, faceCamera:true });
+vis.addYieldChange({ yieldType, yieldDelta }, loc, {x,y}, 4294967295, {x:0,y:-10,z:0});
+vis.clear();   // clears both grids
+```
+
+**Never invent offsets or scales.** The constants are in
+`base-standard/ui/lenses/layer/worker-yields-layer.js` and `…/yield-change-visualizer.js`:
+
+| Constant | Value | What it governs |
+|---|---|---|
+| `SPECIALIST_PIP_X_OFFSET` | **15** | horizontal pip spacing (a guessed 26 spills off the hex) |
+| `SPECIALIST_PIP_Y_INITIAL_OFFSET` / `_Y_OFFSET` | 12 / 18 | first row height, row pitch |
+| `SPECIALIST_PIP_WRAP_AT` | 6 | pips per row before wrapping |
+| `SPECIALIST_PIP_SHRINK_COUNT` / `_SCALE` | 4 / 0.7 | shrink once `maxIndex >= 4` |
+| `ICON_Z_OFFSET` | 5 | z for pips and text |
+| `YIELD_CHANGE_OFFSET` | `{0,-10,0}` | yield houses sit BELOW the pips |
+| `yieldSpritePadding` | 11 | horizontal spacing of yield houses |
+| `PILL_SCALE` / **`ICON_SCALE`** | 0.9 / **0.35** | ⚠ a yield glyph is drawn at **0.35** |
+| `BASE_TEXT_PARAMS` | `fontSize:4, stroke:0` | text over art carries **no** stroke |
+
+Copy `getSpecialistPipOffsetsAndScale(index, maxIndex)` from the base layer rather than reimplementing
+the wrap/shrink maths. Textures: `specialist_tile_pip_full` / `_empty` / `_bad`,
+`yield_arrow_positive` / `_negative`. Concise Specialists Lens (workshop 3506915277) is the reference
+mod for this idiom — it monkeypatches `updateSpecialistPlot` and reuses every base constant.
+
+### Icons
+
+`UI.getIconCSS(type[, context])` for a CSS `url(...)`, `UI.getIconBLP(type)` for a sprite-grid asset
+name. Yields have intensity variants `${YieldType}_1` … `_5`. Prefer **yield** icons over building
+portraits in small UI — the painted portraits are too dark to read at chip and row size.
+
+### Attaching to existing panels
+
+`Controls.decorate('panel-mini-map', (c) => new MyDecorator(c))` then, in `beforeAttach()`,
+`this.component.miniMapButtonRow.appendChild(btn)` puts a control among the map tools (the Detailed Map
+Tacks pattern, workshop 3507297712). Two things silently break this:
+
+- ⛔ **The UIScripts action group must have NO `LoadOrder`.** A late `LoadOrder` (e.g. 1800) registers
+  the decorator after the panel already attached, and the button never appears. Map Tacks' UI group
+  carries no LoadOrder at all — split UI into its own group and leave it unordered.
+- Use the game's button art (`fs://game/hud_mini_lens_btn.png` at `2.6666666667rem`, background inset
+  negative). A hand-drawn CSS circle renders as an unreadable speck. `pointer-events:auto` is required;
+  the row does not grant it.
 
 ## Lenses and lens layers
 
@@ -864,6 +972,17 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   `500`, `600` and any other numeric weight are not. Carry emphasis with size, colour and
   `text-transform` instead. This one is nastier than a layout bug because the text simply is not
   there — it reads as a data failure, not a styling one, and sends you hunting the wrong thing.
+- **⛔ A rejected declaration kills the WHOLE stylesheet, and if that throw sits upstream of your event
+  wiring it silently disables the feature.** Proven twice, 2026-08-16: `align-items: baseline` is
+  rejected outright by the parser, and because the offending `<style>` append ran *before* handler
+  registration, clicks stopped working with no error pointing at CSS. Two rules follow: **register
+  behaviour before styling**, each in its own `try`, and set the "already styled" flag *before* the
+  append so one failure cannot re-run forever. Same reason `ensure()` must create its root element
+  before the stylesheet, never after.
+- **⛔ Your class names share one global namespace with the game's utility classes — pick a colliding
+  one and the game's rule wins.** A class literally named `hidden` inherited the base `.hidden
+  {display:none}` and a third element simply never drew. Prefix every class (`.bpl-ch-row`), and never
+  use a bare English word that reads like a utility (`hidden`, `active`, `selected`, `open`, `small`).
 - **`display: grid` collapses to block.** Grid children stack full-width as if the property
   were never set (proven: a 3-column card grid deployed as stacked rows). Multi-column layouts
   MUST be `flex-wrap` + percentage widths on the items. Flex `column-gap`/`row-gap` ARE safe
@@ -992,6 +1111,21 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   UI log (`Logs/` next to Modding.log). Errors thrown during a script's module load
   kill that script silently — a mod that "does nothing" often just threw on line 1
   (bad import path is the classic).
+- **⛔ ONE MODULE'S SyntaxError SILENTLY DELETES EVERY MODULE THAT IMPORTS IT — and the symptom
+  looks like a missing feature, not a crash.** Proven 2026-08-17: a stray duplicated method signature
+  in `bpl-outer.js` produced `JS Error: … SyntaxError: Unexpected token '{'` plus a `SOURCE ERROR` for
+  *both* that file and the file importing it. Nothing else appeared in-game; the visible symptom was
+  simply *"there are no buttons"*. **Read `Logs/UI.log` FIRST** — `grep <your-mod-prefix> UI.log` gives
+  the file and line in one step, where reasoning from the symptom sends you auditing APIs that were
+  never broken.
+- **⚠ `node --check yourfile.js` is NOT sufficient to validate a UI script.** It accepted the exact
+  file the game rejected: inside a class body a duplicated `method(args) {` line re-parses as a *call
+  expression followed by a block*, which is legal JS, so the braces still balance and Node reports OK
+  while the class silently swallows everything after it. Copy to `.mjs` and `node --check` for a
+  stricter module-goal parse, but treat **UI.log as the only authority** — the game's parser is
+  stricter than Node's. Corollary for scripted edits (sed/python replacements): when a replacement
+  block re-states a signature, confirm the old one was consumed —
+  `grep -n 'methodName(' file.js` should show it once.
 - **FireTuner** (Steam → *Sid Meier's Civilization VII SDK*) has a **Scripting
   Console** that evaluates JS against the live game — the fastest way to poke
   `Players.get(...)`, test selectors, or dump state. Input is single-line; wrap
@@ -1190,6 +1324,10 @@ element. This is how to make a mod panel/badge match the active player's colors.
   context was context- or timing-specific, not a missing API. There is also
   `getPrimaryColorValueAsHex(pid)` returning `0xAABBGGRR` ints for overlay colors.
   The utilities route below remains the belt-and-suspenders choice.)
+- **⛔ Packed overlay colors are `0xAABBGGRR` — ABGR, not ARGB.** Red and blue are swapped
+  relative to every web/hex habit, and nothing errors: you just get the wrong colour and go
+  looking for a bug elsewhere (a Library blue drew as orange, 2026-08-16). The `{x,y,z,w}` float
+  form used by `addPlots` is plain RGBA and does **not** swap — only the packed-int form does.
 - **⚠⚠ `color: var(--x)` IS IGNORED in this Coherent build (the big one — e.g. a custom dashboard,
   2026-07-14, ~10 debug rounds).** A custom property set on an element *does* inherit to
   descendants (confirmed: `getComputedStyle(child).getPropertyValue('--x')` returns the
