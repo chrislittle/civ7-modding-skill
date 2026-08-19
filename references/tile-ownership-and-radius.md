@@ -72,13 +72,28 @@
 > and unbuilt, no placement and no free-build discount). **The UIScript RPC is the only way to put a
 > building on a chosen tile.**
 >
-> **⛔⛔ NEVER `CREATE_ELEMENT` ON AN UNOWNED TILE.** It grants ownership to the **player**, and **no
-> city ever adopts the tile** — not on creation, not over time, and **not even inside ring 3**.
-> ⚠⚠ **RE-VERIFY THIS: every test behind it was run WITHOUT the `Parent` argument** (see above), and on
-> OWNED ground the missing `Parent` alone was enough to produce exactly this "orphan" signature. The
-> rule is probably still true in some form — a city plausibly cannot adopt a tile it does not own — but
-> it is now **UNVERIFIED rather than known**, and should be re-tested with `Parent` before being relied
-> on. Tested
+> **🔴 THIS RULE IS WITHDRAWN — IT WAS A MISSING ARGUMENT, NOT AN ENGINE RULE (disproved in play
+> 2026-08-19, 1.4.2).** The old text read: *"NEVER CREATE_ELEMENT on an unowned tile — it grants
+> ownership to the player, no city ever adopts it, and the expand picker never offers it again."*
+> Every test behind that ran **without `Parent`**.
+>
+> **With `Parent: <cityID>`, a city ADOPTS an unowned tile.** Ring-4 unowned plot, one district + one
+> building, both parented to the nearest city: owner went `-1 -> 0`, an owning city appeared, and the
+> city's own breakdown itemised `Monument +4 Culture / +2 Influence` under *From Buildings*.
+> ```js
+> const city = <the adopting city's ComponentID>;      // on unowned ground you must NAME it —
+>                                                      // getOwningCityFromXY returns nothing
+> sendRequest(owner,"CREATE_ELEMENT",{Kind:"DISTRICT",Type:"DISTRICT_URBAN",Location:loc,Owner:owner,Parent:city});
+> sendRequest(owner,"CREATE_ELEMENT",{Kind:"CONSTRUCTIBLE",Type:"BUILDING_…",Location:loc,Owner:owner,Parent:city});
+> ```
+> ➡ **The "orphan" IS the Parent-less form.** A tile that no city adopts is what you get when nothing
+> tells the engine which city should adopt it.
+>
+> ⚠ **STILL UNVERIFIED for the unowned case** — verify before shipping anything on it: save/reload;
+> whether it works at ranges beyond ring 4; whether the tile behaves normally afterwards (worked,
+> expand picker, age transition, capture/raze); AI and multiplayer behaviour. And note there is then
+> **no engine-side cost or range limit at all** on claiming this way, so any throttle must be designed
+> in deliberately. Tested
 > across turns with adjacencies 0–2: the tile stays a player-owned orphan and the city's EXPAND picker
 > never offers it again, so seizing effectively deletes a tile from the city's reach. ✅ It is
 > **reversible**: `sendRequest(owner, "DESTROY_ELEMENT", {Kind:"DISTRICT", Owner, LocalID})` releases
