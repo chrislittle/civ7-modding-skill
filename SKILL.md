@@ -12,8 +12,12 @@ description: >-
   "shows enabled but does nothing," crashes on map load, or never appears in-game.
   Also use when they mention Modding.log / Database.log, the Firaxis Games Mods
   folder, EFFECT_* / REQUIREMENT_* / COLLECTION_* names, the attach-modifiers
-  pattern, or why a mod isn't in "Target Mods." Prefer this skill over generic XML
-  help for anything Civ VII modding related, even if the user doesn't say "skill."
+  pattern, or why a mod isn't in "Target Mods." **Also use it for plain lookups about
+  what exists in the game** — "what buildings/wonders/units/leaders are there", "how
+  many X", "does the game have Y", "which constructibles have Z", anything needing a
+  complete base+DLC list — because this skill carries generated catalogs of that
+  content and reading one beats searching the install. Prefer this skill over generic
+  XML help for anything Civ VII modding related, even if the user doesn't say "skill."
 ---
 
 # Civilization VII Modding
@@ -23,6 +27,25 @@ Add-Ons menu, pass FK validation, and still apply nothing, with a clean log. Thi
 skill encodes the rules that actually govern whether a mod loads and takes effect,
 plus a deploy/debug workflow to prove it. The rules here were learned by isolation
 testing, not from documentation — trust them over guesses.
+
+## ⛔ Before you assert what the game contains
+
+Most wrong claims about Civ VII content come from **searching by name and treating
+no-match as proof of absence**. A search only tells you what matched your guess about
+naming; it cannot tell you what exists.
+
+- Any claim shaped **"there is no X"** or **"these are all the X"** must come from
+  enumerating the **defining table** — the class, tag, or enum column the engine
+  itself tests — never from a substring match on type names.
+- **Read the catalog in `references/` first**; go to the game install only for what
+  the catalog does not cover, and say so when you do. The catalogs are complete over
+  base + all DLC and already carry the counts.
+- Worked example of the trap: [references/constructibles.md](references/constructibles.md)
+  → *"NAMING TRAP — walls are not all named `*_WALLS`"*. Modern's wall is
+  `BUILDING_DEFENSIVE_FORTIFICATIONS`, so a scan for `WALL` finds two of three and
+  looks complete.
+- Tags alone do not establish scope either — check `ConstructibleClass` and
+  `ValidDistricts` before concluding something is in or out of a family.
 
 ## The six rules that cause "silent nothing"
 

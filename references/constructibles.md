@@ -45,6 +45,173 @@ Verified in-game. By default:
   place a victory **WONDER** in a packed city you need the scripted **`EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE`**
   ("Foundations" recycle pattern in [gameeffects.md](gameeffects.md)) — it bypasses these default restrictions.
 
+## ⛔ COUNTING A TILE'S SLOTS: `ConstructibleClass=="BUILDING"` IS **NOT** "USES A SLOT"
+
+Verified **2026-08-19** against the full `Base` + `DLC` tree (1.4.2) and against the base game's own placement
+model. Two separate exceptions, each with its own engine-side test — copy the engine's test, do not list types.
+
+**1. Occupies NO slot — `ExistingDistrictOnly`.** The base game filters the district's constructibles on the
+**COLUMN**, not on a tag, when it builds the slot row:
+
+```js
+// base-standard/ui/place-building/model-place-building-v2.js  (~line 290)
+const constructibles = selectedDistrict.getConstructibleIds().filter((constructibleID) => {
+    ...
+    if (constructibleDefinition.ExistingDistrictOnly) { return false; }   // <- the real rule
+    return true;
+});
+```
+
+Base + all DLC: exactly **3** rows carry it — `BUILDING_ANCIENT_WALLS`, `BUILDING_MEDIEVAL_WALLS`,
+`BUILDING_DEFENSIVE_FORTIFICATIONS`. All three are `ConstructibleClass="BUILDING"`, so a class check counts
+them and a tile holding walls + 2 buildings reads as **full when a slot is free**. The same 3 also carry the
+`IGNORE_DISTRICT_PLACEMENT_CAP` tag, but **test the column** — it is what the engine tests, so a future DLC or
+third-party wall is handled without a hard-coded list.
+
+**2. Occupies the WHOLE tile — improvement OR wonder OR the `FULL_TILE` tag:**
+
+```js
+// same file, ~line 192
+const isFulltileConstructible = isImprovement
+    || constructibleDef.ConstructibleClass == "WONDER"
+    || ConstructibleHasTagType(constructibleDef.ConstructibleType, "FULL_TILE");
+```
+
+Base + all DLC: `FULL_TILE` is on **3 Modern-age BUILDINGS** — `BUILDING_AIRFIELD`, `BUILDING_RAIL_STATION`,
+`BUILDING_LAUNCH_PAD`. ⚠ **These are the trap**: wonders are obvious, but these read as ordinary slot-fillers
+on class alone, and stacking one with other buildings renders the same visibly broken hybrid a stacked wonder
+does. `ConstructibleHasTagType` is exported from `base-standard/ui/utilities/utilities-tags.js`.
+
+**Sweep, same tree, for context:** `AGELESS` 153 rows · `PERSISTENT` 3 (`BUILDING_PALACE`, `BUILDING_CITY_HALL`,
+`BUILDING_HARBOR`) · `IGNORE_DISTRICT_PLACEMENT_CAP` 3 · `FULL_TILE` 3 · `DISTRICT_WALL` 3 · `LINK_ADJACENT` 5.
+**All 69 wonders (base + DLC) are `AGELESS`**, so an ageless test excludes every wonder as a side effect —
+do not rely on that alone if the intent is "not a wonder".
+
+`utilities-tags.js` also ships `constructibleTagsToExclude` — the tags the game never shows the player
+(`FULL_TILE`, `IGNORE_DISTRICT_PLACEMENT_CAP`, `DISTRICT_WALL`, `LINK_ADJACENT`, `PERSISTENT`, `URBANCENTER`,
+`RAIL_CONNECTION`, `MILL`, `CRISIS`, `GREATWORK`, `RELIGIOUS`, `TRADE`, `SUPPLIES`, `UNIT_FORTIFICATION`,
+`DAMAGE_UPON_OCCUPATION`). A tag on that list is **mechanical**, and its absence from a tooltip is deliberate.
+
+## ⛔ WALLS CARRY PLACEMENT RULES NO TABLE EXPRESSES — enforce them or the RPC will not
+
+Walls are `ConstructibleClass="BUILDING"`, so any code that offers "buildings" sweeps them up, and
+`Game.PlayerOperations.sendRequest(..., "CREATE_ELEMENT", ...)` validates NOTHING. Verified in play
+2026-08-19: a picker offered Ancient Walls on a ring-4 tile with no wall within four hexes.
+
+The rules are stated only in the Civilopedia ("Fortifications"), not in `Constructible_Valid*`:
+- must be built **adjacent to other Walls of the same Settlement, starting with the City Center**
+- **cannot** be adjacent to Walls of a DIFFERENT settlement (except at the City Center, always allowed)
+- **cannot** be built on Navigable River hexes — `GameplayMap.isNavigableRiver(x, y)`
+- **cannot** be built on Rural tiles
+- purchasable with Gold only at the City Center; elsewhere Production, one tile at a time
+
+⚠ `ExistingDistrictOnly="true"` independently means a wall can never OPEN a district, so a wall on bare
+ground is impossible regardless of the chain rule. Identify walls by the **`DISTRICT_WALL` tag** (3
+types, one per Age). See also the slot-accounting section below — walls occupy no slot.
+
+### ⛔ NAMING TRAP — walls are not all named `*_WALLS`
+
+**Modern's wall is `BUILDING_DEFENSIVE_FORTIFICATIONS`.** A scan for type names containing `WALL`
+returns two of the three and looks complete, which is exactly how "there is no Modern-age wall
+building" gets asserted as fact. The set is `BUILDING_ANCIENT_WALLS` (AQ),
+`BUILDING_MEDIEVAL_WALLS` (EX), `BUILDING_DEFENSIVE_FORTIFICATIONS` (MO) — **find them by the
+`DISTRICT_WALL` tag, never by name.**
+
+⚠ Two more things that match a name or tag search for "wall" and are **not** in this family:
+`IMPROVEMENT_HAN_GREAT_WALL` and `IMPROVEMENT_MING_GREAT_WALL` are civ-locked
+(`TraitType` `TRAIT_HAN` / `TRAIT_MING`) whole-tile **improvements** whose `ValidDistricts` is
+`DISTRICT_RURAL` only. They carry `FORTIFICATION` and `LINK_ADJACENT` but **not** `DISTRICT_WALL`,
+so they follow none of the wall rules above. Class and `ValidDistricts` decide scope — tags alone
+do not.
+
+## ⛔ EVALUATING ADJACENCY YOURSELF: THE 21 COLUMNS, AND THE 7 EVERYONE MISSES
+
+Any mod that predicts a building's yield on a tile (a planner, a picker, a "what would this pay"
+readout) has to reimplement `Adjacency_YieldChanges`, because the engine's own preview only covers
+tiles the native placement calculator reaches. Verified against base + DLC on 1.4.2 — every column the
+shipped data actually uses, with how many rules use it:
+
+| column | rules | how to test it |
+|---|---|---|
+| `AdjacentTerrain` | 55 | `GameplayMap.getTerrainType` |
+| `AdjacentDistrict` | 38 | `Districts.getAtLocation().type` |
+| **`AdjacentConstructibleTag`** | **27** | any constructible on the tile carrying that `TypeTags` row |
+| `AdjacentConstructible` | 20 | exact type on the tile |
+| **`AdjacentQuarter`** | **20** | see the quarter rule below |
+| `AdjacentResource` | 18 | `GameplayMap.getResourceType` >= 0 |
+| `AdjacentLake` | 12 | `GameplayMap.isLake` |
+| `AdjacentRiver` | 10 | `GameplayMap.isRiver` |
+| **`AdjacentNaturalWonder`** | **7** | `GameplayMap.isNaturalWonder` |
+| `AdjacentBiome` | 6 | `GameplayMap.getBiomeType` |
+| `AdjacentSpecificResource` | 6 | named resource |
+| **`AdjacentFeatureClass`** | **5** | `GameInfo.Features.lookup(f).FeatureClassType` |
+| **`AdjacentBreathtakingAppeal`** | **4** | `GameplayMap.getAppeal(x,y) >= 5` |
+| `AdjacentConstructibleClass` | 3 | class of a constructible on the tile |
+| `AdjacentFeature` | 3 | `GameplayMap.getFeatureType` |
+| `AdjacentNavigableRiver` | 3 | `GameplayMap.isNavigableRiver` |
+| **`AdjacentCharmingAppeal`** | **2** | `GameplayMap.getAppeal(x,y) >= 3` |
+| **`AdjacentUniqueQuarterType`** | **2** | a unique quarter of that named type (Zaibatsu, Modern) |
+| **`AdjacentUniqueQuarter`** | **1** | any unique quarter |
+
+⛔ `AdjacentSeaResource` and `AdjacentResourceClass` exist in the schema but NO shipped row uses them.
+
+⚠ **The bolded seven are the trap** — 66 of ~240 rules, about 28%. A first-pass evaluator naturally
+covers terrain, resources, districts and rivers and silently drops the rest, so its numbers are
+plausible and wrong. `AdjacentConstructibleTag` alone is the commonest condition after terrain and
+districts.
+
+⭐ **FAIL CLOSED.** An unevaluated condition must count as NO match. Treating it as a match invents
+yields, which is far worse than understating them — and log it once per rule so a gap surfaces in the
+log rather than as a quietly wrong number.
+
+### ⚠ A QUARTER IS A FULL DISTRICT, NOT "TWO BUILDINGS"
+
+`AdjacentQuarter` is 20 rules, so getting this wrong is expensive. A tile is a Quarter when its
+district is **FULL** — `Districts.MaxConstructibles` complete constructibles — and every one of them
+**counts toward a quarter**, which is the base game's own test in
+`model-place-building-v2.js:588 willBecomeQuarter()`: **AGELESS, or belonging to the CURRENT Age.**
+An obsolete previous-Age building on the tile means it is a district and not a quarter, which is why
+quarters stop being quarters at an Age rollover.
+
+⛔ **Read the cap from the district row, never hard-code 2.** A mod raising `MaxConstructibles` (a
+one-row change) silently changes what "full" means, so every Quarter in the game then needs a third
+building.
+
+### Appeal thresholds are not in any table
+
+Each adjacent item of natural beauty is **+1 Appeal**; **Charming = 3**, **Breathtaking = 5**. Stated
+in the Civilopedia and enforced by the engine, present in no data row — so they must be written as
+constants. `GameplayMap.getAppeal(x, y)` returns the score.
+
+## ⛔ "URBAN" IS A COLUMN AND A LIVE PROPERTY — NEVER A HAND-ROLLED DISTRICT LIST
+
+**Rural tiles are NOT districts.** The Civilopedia states the placement rule as: constructibles may be
+placed on owned Rural tiles *"provided they are connected to an Urban tile or City Center"*, which then
+converts the tile to Urban. Anything reimplementing that rule (a mod placing buildings itself, past the
+range the native calculator covers) must reproduce it, because the `CREATE_ELEMENT` RPC enforces nothing.
+
+`Districts.UrbanCoreType` is the game's classification — verified base + DLC, 1.4.2:
+
+| DistrictType | DistrictClass | `UrbanCoreType` |
+|---|---|---|
+| `DISTRICT_CITY_CENTER` | CITYCENTER | `ALWAYS_URBAN` |
+| `DISTRICT_URBAN` | URBAN | `ALWAYS_URBAN` |
+| `DISTRICT_WONDER` | WONDER | **`URBAN_IF_CONNECTED`** |
+| `DISTRICT_RURAL` | RURAL | `NEVER_URBAN` |
+| `DISTRICT_WILDERNESS` | WILDERNESS | `NEVER_URBAN` |
+
+⭐ **ASK THE ENGINE, DO NOT DERIVE IT: `District.isUrbanCore`** is a live boolean on the District object
+— the base game uses it for exactly this judgement in
+`base-standard/ui/place-building/model-place-building-v2.js:366`.
+
+⚠ **Why a hand-rolled list of district types is WRONG**: `DISTRICT_WONDER` is `URBAN_IF_CONNECTED`, a
+CONDITIONAL. A wonder tile counts as urban only when connected, and only the engine knows whether a
+given wonder currently is. A static list either wrongly includes disconnected wonders or wrongly
+excludes connected ones. Read `isUrbanCore`; fall back to the column only if the property is missing.
+
+⚠ Also note `Workable="true"` is on CITY_CENTER and URBAN only — RURAL is not workable, which is the
+separate reason a specialist can never be assigned to a rural tile.
+
 ## Recipe: make a constructible age-bound (overbuildable later)
 
 This is the "Nerfed Warehouses" pattern — strip `AGELESS` and assign an `Age`:
