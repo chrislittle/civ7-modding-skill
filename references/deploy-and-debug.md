@@ -124,6 +124,14 @@ commented out with a leading `;` and default off — **remove the `;` and set th
 | `UIDebugger 1` | inspect the running UI's HTML/CSS/JS from **Google Chrome** (buggy in other browsers). |
 | `UIFileWatcher 1` | hot-reloads already-loaded UI files as you edit them — no restart for UI-only changes (DB/text still need a full restart). |
 
+⛔⛔ **A GAME PATCH REGENERATES `AppOptions.txt` AND SILENTLY REVERTS EVERY ONE OF THESE.** Hit
+2026-08-22: FireTuner stopped connecting with no other symptom, and the file had been rewritten from
+the default template — every dev setting commented out again, with only `Version`,
+`DisableModsOnStartupVersion` and `FirstBoot` left uncommented. It looks like a blocked port, a
+firewall, or the mod you happen to be working on, and it is none of them.
+➡ **When a dev tool stops working for no reason, check this file FIRST** — `grep -n "^EnableTuner"`
+answers it in one command. Keep a copy of your edited version somewhere the patcher cannot reach.
+
 `CopyDatabasesToDisk` is the answer whenever you need to confirm an effect/requirement
 argument name or a table's real columns and grepping `Base/modules` isn't enough — the
 runtime DB has the complete picture.

@@ -33,6 +33,7 @@ Everything in this reference is distilled from shipping, working Steam Workshop 
 - [The JS game API surface](#the-js-game-api-surface)
 - [Cross-mod integration](#cross-mod-integration)
 - [ui-next: the second UI stack](#ui-next-the-second-ui-stack)
+- [⛔⛔ Never identify game content by its rendered text](#-never-identify-game-content-by-its-rendered-text-shipped-bug-law-2026-09-06)
 - [Debugging UI mods](#debugging-ui-mods)
 - [Colors: leaders, player-color CSS, plot tinting, tree icons](#colors-leaders-player-color-css-plot-tinting-tree-icons)
 
@@ -515,11 +516,114 @@ Drawing on the map from a layer:
   faceCamera:true})`, `.addYieldChange(...)` (see the worker-yields layer).
 - **VFX at plots** — `const grp = WorldUI.createModelGroup("MyGroup");
   grp.addVFXAtPlot("VFX_3dUI_Tut_SelectThis_01", plotCoord, {x:0,y:0,z:0});
-  grp.clear()`.
+  grp.clear()`. ⭐ Far more capable than it looks — see the next section.
 - **Flat colored plot fills / edges** — `WorldUI.createOverlayGroup` + `addPlotOverlay`
   (see [Colors](#colors-leaders-player-color-css-plot-tinting-tree-icons) for the full
   recipe — this is how ACB-style "tint tiles by yield/type" lenses are drawn).
 - Plot coordinates from an index: `GameplayMap.getLocationFromIndex(plotIndex)`.
+
+## ⭐ Lighting tiles: `addVFXAtPlot` is tintable, and there is a whole palette (2026-08-21)
+
+A real 3D light on the terrain, not a colour wash over it — this is what a flat
+`addPlotOverlay` fill cannot do. **Verified by reading base UI + a shipping mod, not yet
+written by us.**
+
+```js
+const grp = WorldUI.createModelGroup("MyGroup");
+grp.addVFXAtPlot(
+  "VFX_3dUI_Hex_Highlight_01",
+  plotIndexOrCoord,                       // BOTH forms work - base passes an index, mods pass {x,y}
+  { x: 0, y: 0, z: 0 },                   // offset
+  { angle: 0, constants: { Color3: [1, 0.992, 0.62], Alpha1: 1 } }
+);
+grp.clear();                              // the only teardown
+```
+
+**The 4th argument is the whole story.** `interface-mode-place-building.js:151` glows Unique
+Quarter candidate plots with exactly the call above, so:
+
+- `constants.Color3: [r,g,b]` — **the glow takes a colour**, as linear floats, not sRGB.
+  ⚠ Do not paste a hex value's `/255` channels in and expect a match.
+  `constants.Alpha1`, and `constants.tintColor1` on some effects
+  (`support-unit-map-decoration.js:510`).
+- `angle`, and `placement: PlacementMode.FIXED | TERRAIN` — governs how the effect sits on
+  the ground. The tutorial passes `TERRAIN` (`tutorial-manager.js:2209`); several mods omit it.
+- Effect-specific constants: `{ turn, scale }`, `{ start, end, height }`.
+
+**The plot VFX that exist in base UI** (all base assets — no art to ship):
+
+| name | what it is | used by |
+|---|---|---|
+| `VFX_3dUI_Hex_Highlight_01` | generic tintable hex glow — **the general-purpose one** | Unique Quarter plots during placement |
+| `VFX_3dUI_Tut_SelectThis_01` | "click here" beam | tutorial |
+| `VFX_3dUI_Unit_Selected_01` | selected-unit ring | unit selection |
+| `VFX_3dUI_PlotCursor_01` / `_City_Picker` / `_Free` | hover cursors | acquire-tile, place-building |
+| `VFX_3dUI_TurnCount_01` | ⭐ **renders a turn NUMBER on the tile** (`constants:{turn, scale}`) | reinforcement + unit paths |
+| `VFX_3dUI_MovePip_01`, `_Movement_Marker_Start_01`, `_Reinforcement_Arrow`, `_TradeRoute_01` | path furniture (`start`/`end`/`Color3`) | movement, trade |
+| `VFX_District_Added_To_Map`, `VFX_UnitSelection_Ground_Burst_01` | one-shot bursts | placement feedback |
+
+⭐ **Stacking reads as "lit" rather than "tinted".** Detailed Map Tacks puts *two* effects on
+one plot — `Tut_SelectThis_01` (beam) + `Unit_Selected_01` (ring).
+
+### The pattern worth stealing: glow a tile when its plan becomes relevant
+
+`dmt-map-tack-layer.js` (Detailed Map Tacks, ~60 lines) is the clearest example of a mod
+reminding the player of its own data at the moment the base UI asks for a decision:
+
+1. a **lens layer** owns the model group and listens on `LensActivationEventName`;
+2. when the active lens becomes **`fxs-building-placement-lens`** — the build queue's
+   "choose a tile" step — it reads
+   **`BuildingPlacementManager.currentConstructible.ConstructibleType`**;
+3. it glows only the tiles its own store has marked for **that same constructible type**;
+4. `modelGroup.clear()` on any lens change.
+
+It does the same for city-centre plans under `fxs-settler-lens`. The type match is what makes
+it read as *your plan*, not decoration. ⛔ Read your **own** store, never another mod's.
+
+## Icons: getting the game's own art into a mod's UI (2026-08-22)
+
+⛔ **Do not draw a lookalike and do not use a text glyph.** A drawn `✕` does not even render in the
+game's font, and a text `◉` reads as a low-res circle. Every mark below is a real asset the base UI
+itself uses, so a mod's controls look native and stay correct across patches.
+
+```js
+import { Icon } from '/core/ui/utilities/utilities-image.js';
+```
+
+| what | call | notes |
+|---|---|---|
+| **Civilization symbol** | `Icon.getCivSymbolCSSFromCivilizationType(player.civilizationType)` | returns a ready `url(...)` for `background-image`. Also `getCivSymbolCSSFromPlayer(componentID)` and `getCivSymbolFromCivilizationType()` for the bare URL. What city banners, the diplo ribbon and age-scores all use. Unknown civ → `fs://game/civ_sym_unknown.png`. |
+| **Yield icon** | `UI.getIconCSS(yieldType, 'YIELD')` | ✅ the route that answers in practice. Fallbacks worth keeping in order: `UI.getIconCSS(type)`, `UI.getIconURL(type,'YIELD')`, `UI.getIconBLP(type)`. |
+| **Constructible icon** | `Icon.getConstructibleIconFromDefinition(def)` | takes the `GameInfo.Constructibles` row, not the type string. |
+
+**Direct art paths that already exist** — `fs://game/<name>.png`, or `blp:<name>`:
+
+| purpose | asset |
+|---|---|
+| look at / locate a tile | `action_lookout.png` |
+| remove from a queue | `city_queue_trash.png` |
+| reorder in a queue | `city_queue_up.png` (rotate 180° for "down", as the base build queue does) |
+| close | `hud_closebutton.png` (`_hover`, `_pressed` variants) |
+| delete / minus | `blp:icon_delete`, `blp:icon_minus` |
+
+### ⛔ TINTING art: two different mechanisms, and picking the wrong one fails SILENTLY
+
+| art | how it is coloured | example |
+|---|---|---|
+| **civ symbol** (`Icon.getCivSymbolCSS*`) | `filter: fxs-color-tint(<colour>)` | `panel-diplo-ribbon.css:430` — `.diplo-ribbon__symbol { filter: fxs-color-tint(var(--player-color-secondary)); }` |
+| **hex plates / panel art** (`bg_hex-icon.png`, banners) | `fxs-background-image-tint: <colour>` | `.diplo-ribbon__portrait-bg`, declared in the SAME rule as its `background-image` |
+
+⚠⚠ The civ symbol art is a **white mask**. Untinted it is invisible on any light surface, and using
+`fxs-background-image-tint` on it does nothing at all — no error, no log line, just white. Cost three
+rounds of guessing before reading the source.
+⚠ When you do use `fxs-background-image-tint`, declare it **beside** the `background-image` it tints;
+tinting from a stylesheet an image assigned inline did not take.
+
+⚠ Icon paths are **NOT derivable from the type name**. `BUILDING_LIBRARY` is `blp:buildicon_library`,
+but the pattern is not guaranteed — READ the `IconDefinitions` row rather than composing the string.
+
+⚠ Set them with `el.style.backgroundImage = css` plus
+`background-size:contain; background-repeat:no-repeat; background-position:center` in your stylesheet.
 
 ## Interface modes and views
 
@@ -935,10 +1039,22 @@ the old registry. Consequences, all observed in current mods:
   lands OUTSIDE the frame (a detached strip below), and climbing "until parent === tooltip"
   overshoots to the Frame itself (a detached strip above). The fix: the compiled component
   (`base-standard/ui-next/tooltips/tech-civic-tooltip.js`) shows the frame's children are
-  [header → unlock sections → cost row `.flex.flex-row.flex-wrap`], so anchor with
-  `pill.closest('.flex-wrap')` and `insertBefore(box, row)` — inside the frame, above the cost.
-  Prefer "absent over detached": if the anchor is missing, skip the insert rather than fall
-  back to the root. (Spacing note: the LAST unlock section has no bottom margin — the game
+  [header → unlock sections → cost row `.flex.flex-row.flex-wrap`], so anchor above the cost
+  row and `insertBefore(box, row)` — inside the frame.
+  ⛔ **SELECT THAT ROW DIRECTLY — `tooltip.querySelector('[class*="flex-wrap"][class*="mt-2"]')` —
+  NOT via `pill.closest('.flex-wrap')`.** This doc used to say `closest` from the cost pill, and
+  that advice shipped a bug: finding the pill first meant locating it by its "Cost" text, so the
+  anchor inherited a language dependency and the whole injection vanished outside English (E&I
+  v4, 2026-09-06 — see *Never identify game content by its rendered text* below). The row comes
+  from a fixed `template()` literal in the compiled Solid source, so it can always be selected on
+  its own classes, in any language.
+  ⚠ **AND REVISE "absent over detached".** The old rule — *if the anchor is missing, skip the
+  insert rather than fall back to the root* — is right about not dangling content off the frame,
+  but taken literally it converts a cosmetic miss into a TOTAL, SILENT feature loss, which is
+  exactly how the above shipped and got reported as "the mod isn't working". Correct form:
+  **try the structural anchor, then a fallback anchor, then append to the frame — and log which
+  one you used.** A box in a slightly wrong place is a bug report; no box at all reads as a
+  broken mod. (Spacing note: the LAST unlock section has no bottom margin — the game
   spaces via the cost row's top margin, so give injected rows their gap on TOP.)
   The same mod's legacy-stack half is a standard `Controls.decorate` on the tree detail
   panel, with two MutationObservers (attribute filter `['progress','level',...]` on the
@@ -951,6 +1067,88 @@ the old registry. Consequences, all observed in current mods:
   game versions and silently break mods** — a moved options-screen module is a known
   cause of "my mod's options tab stopped appearing after the patch." Re-verify import
   paths against the installed `Base/modules/core/` after every game update.
+
+## ⛔⛔ Never identify game content by its rendered text (shipped-bug law, 2026-09-06)
+
+**The game owns every string a player reads. A mod that reads one back to work out *what* it is
+has hardcoded a language.** This shipped in Eureka & Inspiration v3 and made its entire tech-tree
+overlay invisible in every language except English — silently, no log line, no error.
+
+**The diagnostic signature, and it is unmistakable once you know it:** the parts of the mod that
+resolve content by **hash or attribute keep working**, while the parts that resolve it by **text
+go dark**. In E&I the bulb badges on the tree cards rendered perfectly while the tooltip box and
+the progress pill were absent. That asymmetry looks *selective*, which is why it was reported as
+a mod conflict and cost two wrong diagnoses (Solid DOM-reuse, then a specific co-installed mod)
+before anyone thought to change the game language. **If a UI mod "works except for one surface",
+ask what identifies content on that surface before you look at other mods.**
+
+The two failure modes, both from the same file:
+
+```js
+// ⛔ NODE IDENTITY BY HEADER TEXT — hardcoded English name table
+const hit = ENI_NAME2NODE[tooltipHeader.textContent.trim().toUpperCase()];  // "VIDA PÚBLICA" → miss
+// ⛔ ANCHOR BY AN ENGLISH WORD — LOC_CARD_COST is "Coste:" / "Coût :" / "Kosten:" / "Стоимость:"
+if (/^Cost\b/.test(el.textContent)) costEl = el;
+```
+
+### The three correct patterns (all proven in shipping mods)
+
+1. **Identity from attributes, via `:hover`.** The Solid tooltip carries no node id, but the card
+   that triggered it does. Metropolis Ascendant's `mad-tree-tooltip.js` was immune from the start
+   because it never read text:
+   ```js
+   const card = document.querySelector('tree-card-v2:hover');
+   const item = document.querySelector('.tech-item[node-id]:hover, .culture-item[node-id]:hover');
+   const type = card?.getAttribute('type');          // hash string → your own type map
+   ```
+   ⚠ **The attribute differs by surface**: the full trees use `tree-card-v2[type]`, but the
+   tech/civic research **choosers use `[node-id]`**. A single `[type]` selector silently misses
+   every chooser (and a bare `[type]` also risks matching unrelated elements). Handle both.
+2. **Anchors from structure, never from words.** Compiled Solid components build their frames from
+   fixed `template()` literals, so their class strings are stable and language-free —
+   `tooltip.querySelector('[class*="flex-wrap"][class*="mt-2"]')` for the cost row, or "the last
+   `.rounded-full` in the tooltip" for the cost pill itself (MA's `costPillOf`). Read the compiled
+   source for the literal; never infer the anchor from what it says.
+3. **If you genuinely must match by name, localise BOTH sides.** Some DOM offers no id at all — a
+   base `PolicyCard` exposes no `TraditionType` — so name matching is the only route. Then build
+   the lookup from the game's own localised strings, never from a literal table:
+   ```js
+   for (const t of GameInfo.Traditions) map.set(Locale.compose(t.Name).trim().toLowerCase(), t.TraditionType);
+   ```
+   MA's `mad-card-brand.js` / `mad-card-chips.js` do exactly this and work in every language.
+
+### The deeper lesson — the first fix was not enough
+
+Round one localised the string *matches* (deriving the cost prefix from `Locale.compose('LOC_CARD_COST')`)
+and **Spanish still failed**, because the injected box still *depended* on finding that element.
+⛔ **It is not enough to translate a string match — take the string OUT of the load-bearing path.**
+Ask: if this match returns nothing, does the feature degrade or disappear? If it disappears, the
+match is load-bearing and must be replaced by structure, not translated.
+
+### Display names, and where the localised one lives
+
+Never print your own name table for game content. `ProgressionTreeNodes` rows carry
+`Name="LOC_CIVIC_MYSTICISM_NAME"` — compose it (this is what the base sub-system dock does):
+```js
+const info = GameInfo.ProgressionTreeNodes.lookup(Database.makeHash(nodeType));
+const label = Locale.compose(info.Name);   // compose returns the KEY UNCHANGED on a miss — test for that
+```
+Memoise it (called per row / per tooltip), and keep a literal table only as a last-resort fallback.
+
+### English text DOES fall back — verified, so a mod need not ship l10n to function
+
+`Base/Assets/schema/localization/schema-loc-10.sql` defines `EnglishText` as a VIEW that inserts into
+`LocalizedText` with `Language='en_US'`, and `LanguagePriorities` gives every shipped language a
+**fallback to `en_US` at priority 50** (its own locale is 100). So an English-only mod's strings
+render in a Spanish game — nothing is blank. **Missing translations are a polish backlog; text-based
+identification is a functional bug.** Do not conflate them.
+
+### Test it
+
+**Switching the game language for two minutes finds this class of bug, and no amount of English
+testing ever will.** Add it to the pre-ship pass for any mod that reads the DOM. And when a UI
+injection can silently draw nothing, emit one self-limiting log line naming the reason — silence is
+what turned a one-line fix into a multi-round investigation.
 
 ## Coherent CSS/layout laws (in-game proven 2026-07-26)
 
@@ -1523,3 +1721,77 @@ Game.PlayerOperations.canStart(owner, "CREATE_ELEMENT", args, false);
 constructibles — a cleaner route than overbuild/REPLACE gymnastics; see
 [razing-and-conquest.md](razing-and-conquest.md)), resource removal, and terrain/district
 edits that must persist.
+
+## ⭐ Tile-anchored DOM labels — WorldAnchors (the third map-rendering route)
+
+Sourced 2026-08-22 from the shipping Workshop mod **"City-Tile Labels"** (`pd-building-labels`
+v1.3.0, skar99/Hensteve) — per-tile building labels rendered as REAL HTML, not sprites.
+
+There are THREE ways to draw on the map, and this one was undocumented here until now:
+
+| route | what it is | text? | styling? |
+|---|---|---|---|
+| World sprites/VFX | `WorldUI` model groups, `addSprite`/`addText`/`addVFXAtPlot` | crude | atlas art only |
+| Screen DOM | panels in `#worldanchor`/body | full | full CSS |
+| **Tile-anchored DOM** | **a DOM element the ENGINE pins to a world position** | **full** | **full CSS** |
+
+The mechanism (building-labels.bundle.js:1742):
+
+```js
+this.worldAnchorHandle = WorldAnchors.RegisterFixedWorldAnchor(location, {x: 0, y: 0, z: 20});
+root.setAttribute("data-bind-style-transform2d",
+    `{{FixedWorldAnchors.offsetTransforms[${this.worldAnchorHandle}].value}}`);
+root.setAttribute("data-bind-style-opacity",
+    `{{FixedWorldAnchors.visibleValues[${this.worldAnchorHandle}]}}`);
+// on detach:
+WorldAnchors.UnregisterFixedWorldAnchor(this.worldAnchorHandle);
+```
+
+- `location` is a plot coord; the `z` offset lifts the anchor above the ground plane.
+- The **data binding does all the work**: the engine writes a 2D transform every frame as the
+  camera moves, and `visibleValues` fades the element with distance/occlusion — no per-frame JS,
+  no camera listener. This is the same mechanism city banners ride.
+- The element must carry `pointer-events-none` and the **`allowCameraMovement`** class so map
+  drag/zoom passes through it.
+- Position with `transform: translateX(-50%) translateY(-100%)` on an inner container so the
+  label sits centered ABOVE the anchor point; the outer element gets the engine's transform.
+
+**Their label anatomy, worth copying** (container → frame → box → items):
+- per-item: a round icon wrapper whose `::before` ring is **color-coded by category**
+  (food `#80b34d` · production `#8f5732` · gold `#f6ce55` · science `#6ca6e0` · culture `#6d5fe6`
+  · happiness `#f5993d` · military `#d65353` · diplomacy `#afb7cf` · wonder `#e7d39a`) — a
+  ready-made, player-familiar category palette;
+- a small **state badge dot** at the icon's top-right corner (`queued` blue, `overbuildable`
+  grey) — state on the corner, identity in the middle;
+- an optional **`with-background-box`** style (dark rounded box + `filter: drop-shadow`) vs the
+  bare floating style, and an **`icons-only`** compact variant — three looks from one DOM shape;
+- constructible portraits via `UI.getIconCSS(type)` read fine at ~2rem on the map.
+
+⚠ **Two anti-patterns in the same mod — do NOT copy:**
+- `categoryFromTokens()` classifies buildings by **NAME SUBSTRINGS** ("barracks", "wall", …) —
+  the naming trap this skill's front page warns about. Classify from data (adjacency yield type,
+  TypeTags), never from the id's spelling.
+- It harvests player colors by reading `--city-banner-color` CSS vars off live city-banner DOM.
+  The sanctioned route is `UI.Color.getPlayerColors()` + `createPlayerColorVariants()` (see the
+  Colors section above).
+
+## ⛔ Sprite-grid stacking is uncontrollable across textures (proven the hard way, 2026-08-23)
+
+Learned across four failed attempts to composite a "red rim around a normal pip" from two disc
+textures in one `WorldUI` sprite grid (bpl-litmus):
+
+- **Insertion order is NOT draw order** between different textures: drawing disc A then disc B on the
+  same spot rendered A on top.
+- **The z coordinate does not fix it either**: the same pair at `z` and `z-2` still rendered the
+  "lower" one on top. The grid appears to batch/sort by texture, in an order the caller cannot set.
+- ⚠ The one stacking that DOES hold: a small glyph sprite drawn after a disc at the same z reliably
+  renders above it (the pip + yield-icon pattern). Trust that specific pairing, nothing more.
+- Related texture facts: the base ships exactly THREE specialist pip discs (`_empty`, `_full` — has a
+  person baked in — and `_bad` — has a red "!" baked in); `specialist_pip_framed_empty/_full` exist as
+  a fourth/fifth family from the city screen. Baked-in punctuation cannot be composited away.
+
+➡ **If a mark needs controlled layering or styling, do not fight the sprite grid** — use a tintable
+plot VFX (`addVFXAtPlot` + `Color3`, section above; colours render ADDITIVELY and wash out — test in
+game, keep them saturated/dark) or a WorldAnchors DOM label (section above), both of which the caller
+fully controls. The bpl-litmus obsolete mark ended as: plain pips + a deep-crimson hex glow
+(`#c31220` via srgbToLinear), with the detail carried in the panel.
