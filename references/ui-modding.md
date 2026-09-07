@@ -1143,7 +1143,29 @@ Memoise it (called per row / per tooltip), and keep a literal table only as a la
 render in a Spanish game — nothing is blank. **Missing translations are a polish backlog; text-based
 identification is a functional bug.** Do not conflate them.
 
+### ⭐ `tree-card-v2`: one host holds the base node AND its Mastery row
+
+Proven empirically 2026-09-06 after two wrong guesses from the compiled Solid source, both of which
+shipped as regressions:
+
+- The host carries the **base node's** `type` attribute.
+- The host is **not** itself classed `tree-card--mastery`, so testing the host's classes never
+  detects a mastery — a decorator keyed on the card will happily draw the base node's content on a
+  Mastery-II tooltip.
+- The host **does contain** a `.tree-card--mastery` descendant, so `card.querySelector('.tree-card--mastery')`
+  matches EVERY card and suppresses the whole overlay.
+
+⛔ Neither "is the card a mastery?" question has a correct answer, because the card is both.
+✅ **Ask about the POINTER instead**: `event.target.closest('.tree-card--mastery')` is true only when
+the cursor is genuinely over the mastery row. `closest()` includes the element itself.
+
+⚠ Beware stale sibling comments: the same base file describes masteries as "separate tree-card-v2
+elements" in one place and says the host "wraps the mastery-II row too" in another. Only the second
+matches observed behaviour. **When two comments disagree, instrument the live DOM — do not pick one.**
+
 ### Test it
+
+
 
 **Switching the game language for two minutes finds this class of bug, and no amount of English
 testing ever will.** Add it to the pre-ship pass for any mod that reads the DOM. And when a UI
