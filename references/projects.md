@@ -65,6 +65,21 @@ Swap the requirements for your own gate. For a human-only project the candidate 
 `base-standard/data/modifiers.xml`). ⚠ **UNPROVEN:** whether a PLAYER-scoped requirement evaluates
 when the modifier's subject is a CITY. Litmus it before relying on it.
 
+🏆 **BOTH HALVES PROVEN IN PLAY 2026-09-13.** A three-arm litmus put three `RequiresUnlock="true"`
+projects in a city list, each unlocked by its own `COLLECTION_PLAYER_CITIES` +
+`EFFECT_CITY_UNLOCK_PROJECT` modifier: one gated `REQUIREMENT_PLAYER_IS_HUMAN`, one gated the same
+with `inverse="true"`, one ungated. **The human-gated and ungated projects appeared; the AI-gated one
+did not.** So a PLAYER-scoped requirement DOES evaluate when the modifier's subject is a CITY, and
+this is a real gate — an AI never sees the project at all.
+⚠ The inverse arm is what proves it. A requirement that silently defaulted to PASS would have shown
+the human-gated project anyway and looked identical to success.
+
+⛔ **`<Argument name="ProjectType">` does NOT accept a comma-separated list.** One modifier naming two
+project types unlocked NEITHER (proven the same day). You need **one unlock modifier per project**.
+⚠⚠ **THE GENERAL LAW: argument list-support is PER-ARGUMENT and never generalises.**
+`EFFECT_ATTACH_MODIFIERS`'s `ModifierId` happily takes `A, B, C` — which is exactly why assuming
+`ProjectType` would too is the natural mistake. Test the list form before building on it.
+
 ⚠ `AiFavoredItems` can also bias the AI against a project
 (`<Row ListType="...ProjectBiases" Item="PROJECT_X" Value="1000"/>` — negative to discourage), but
 that is a **scoring nudge, not a gate**. Belt-and-braces only, never the fix on its own.
