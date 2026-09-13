@@ -30,6 +30,55 @@ node (no project, no build action) is simpler. See
    `RequiresUnlock="true"` is for **Town** warehouse projects. Getting this backwards
    makes a tech-gated city project never become buildable.
 
+## ⛔⛔ A PROJECT THE AI CAN SEE BUT ONLY YOUR UI CAN FULFIL IS A PRODUCTION TRAP
+
+**The single most important thing on this page if your project's real work happens in a `<UIScripts>`
+file.** UI scripts run in the UI isolate and **an AI player never runs them**. So a mod shaped as
+"data-side project pays the cost, UI-side script delivers the result" means an AI can queue it, pay
+full production, and receive **nothing at all** — silently, every game, for every AI.
+
+Found 2026-09-13 in a mod whose outer-ring build projects shipped `RequiresUnlock="false"` with no
+prereq: every AI city could queue all 352 of them from turn one. **The exposure is structural, not
+probabilistic** — only whether the AI's scoring *picks* them is uncertain, and that is opaque logic
+you do not control and Firaxis can change in a patch.
+
+### The fix: hide it from everyone, then unlock it for whoever should have it
+
+`RequiresUnlock="true"` means "this project stays hidden until something explicitly unlocks it for
+this city" — that is the warehouse-style unlock referred to in rule 2 above. Nothing in the
+`Projects` schema can gate on the player being human, but a **modifier** can:
+
+```xml
+<!-- base-game shape: age-exploration/data/civilizations-common-gameeffects.xml -->
+<Modifier id="TRAIT_MOD_TOWN_TRADE_PROJECT" collection="COLLECTION_PLAYER_CITIES"
+          effect="EFFECT_CITY_UNLOCK_PROJECT">
+    <SubjectRequirements>
+        <Requirement type="REQUIREMENT_CITY_IS_TOWN"/>
+        <Requirement type="REQUIREMENT_CITY_IS_DISTANT_LANDS"/>
+    </SubjectRequirements>
+    <Argument name="ProjectType">PROJECT_TOWN_TRADE</Argument>
+</Modifier>
+```
+
+Swap the requirements for your own gate. For a human-only project the candidate is
+`REQUIREMENT_PLAYER_IS_HUMAN` (its inverse is the base game's own `REQ_PLAYER_IS_AI` in
+`base-standard/data/modifiers.xml`). ⚠ **UNPROVEN:** whether a PLAYER-scoped requirement evaluates
+when the modifier's subject is a CITY. Litmus it before relying on it.
+
+⚠ `AiFavoredItems` can also bias the AI against a project
+(`<Row ListType="...ProjectBiases" Item="PROJECT_X" Value="1000"/>` — negative to discourage), but
+that is a **scoring nudge, not a gate**. Belt-and-braces only, never the fix on its own.
+
+### Every gate a `Projects` row can carry
+
+Read from `Base/Assets/schema/gameplay/01_GameplaySchema.sql`, so this list is complete:
+`PrereqAnyCity`, `PrereqConstructible`, `PrereqGreatWorks`, `PrereqPopulation`, `PrereqResource`,
+`PrereqWorkers`, `PrereqWorkersBonusBuilding1/2`, `RequireCompletedLegacyPathType`, `RequiresUnlock`,
+`MaxPlayerInstances`, `MaxSpecializationInstancesOnContinent`, `CityOnly`, `TownOnly`, `TownDefault`,
+`ExclusiveSpecialization`, `CanPurchase`.
+⛔ **There is no human-only or player-state gate among them** — which is why the unlock modifier above
+is the route.
+
 ## Defining a Project
 
 Projects are data-XML rows (root `<Database>`, table `Projects`). Mirror a real

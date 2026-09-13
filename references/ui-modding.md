@@ -956,6 +956,35 @@ must re-derive base + adjacency + owned-modifier yields from the data tables and
 map yourself — the full algorithm is in
 [yield-preview-engine.md](yield-preview-engine.md).
 
+## ⛔⛔ THE AI NEVER RUNS YOUR UI SCRIPT — so never let data promise what only UI delivers
+
+The architectural law behind a whole class of silent bugs, found 2026-09-13.
+
+`<UIScripts>` run in the **UI isolate, for the local human only**. An AI player never executes a line
+of them. That is fine for anything cosmetic — but it is a trap the moment your mod pairs:
+
+- a **data-side cost or entry point** the AI can see and choose (a Project, a Constructible, a
+  Tradition), with
+- a **UI-side fulfilment** that actually delivers the result (a `CREATE_ELEMENT` call, a panel the
+  player interacts with, state kept in a `Catalog` store).
+
+The AI takes the entry point, pays, and gets nothing. No error, nothing in any log, and no player
+ever sees it happen — it just quietly degrades every AI in every game.
+
+⚠ **A UI-side filter is NOT a gate.** If your production list hides unavailable items in JS, that rule
+exists only for the human. The AI reads the gameplay database directly and sees everything you
+declared, unfiltered.
+
+**➡ The rule: anything the AI can choose must be gated IN DATA, or be fully deliverable IN DATA.**
+Never rely on a UI filter, and never assume the AI's scoring will decline it for you — that is opaque
+logic you do not control and a patch can change. For projects specifically, see
+[projects.md](projects.md) — `RequiresUnlock="true"` plus an `EFFECT_CITY_UNLOCK_PROJECT` modifier is
+the base game's own shape for "hidden until explicitly granted".
+
+⚠ Related but distinct: `Game.PlayerOperations.sendRequest('CREATE_ELEMENT')` **is** the one proven
+UI→data write, so a UI script can make durable gameplay changes — it just cannot make them *for an AI
+player*, because nothing triggers it there.
+
 ## Cross-mod integration
 
 - **Expose an API**: attach a frozen object to `globalThis`
