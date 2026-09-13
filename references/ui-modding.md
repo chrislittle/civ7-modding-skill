@@ -45,6 +45,11 @@ but different Actions:
 - **`<UIScripts><Item>path.js</Item></UIScripts>`** — load a JS file as an ES module
   when the context starts. This is the workhorse: decorators, patches, and component
   definitions all load this way.
+  ⚠ **LIST ONLY THE ENTRY POINTS.** Anything reached by `import` from a listed module
+  loads automatically, and the import graph is also what fixes load order between your
+  own modules. **Listing an imported module here as well EXECUTES IT TWICE** — so a
+  decorator registers twice, a listener double-fires, and a module-level `setInterval`
+  runs two copies. (Better City UI, Najane: 40+ modules, exactly two `UIScripts` rows.)
 - **`<ImportFiles><Item>path</Item></ImportFiles>`** — mount a file into the UI
   virtual filesystem so it's addressable at an `fs://game/...` URL. Used for `.html`
   templates, `.css`, and `.png` assets — **and for wholesale replacement of base-game
@@ -1744,18 +1749,56 @@ constructibles — a cleaner route than overbuild/REPLACE gymnastics; see
 [razing-and-conquest.md](razing-and-conquest.md)), resource removal, and terrain/district
 edits that must persist.
 
+## ⭐⭐ `plot-icons` — the FOURTH map-rendering route, and the game's own (2026-09-13)
+
+Sourced from the shipping Workshop mod **Better City UI** (`better-city-ui`, Najane), whose own
+header documents why it abandoned sprites for this.
+
+⛔ **FIRST, THE SPRITE CEILING, NOW PINNED DOWN.** `addSprite` takes **`scale`, `alpha`, `angle` and
+`offset` — and nothing else**, checked against every call in the game. **A SPRITE CANNOT BE
+COLOURED.** That independently confirms the four failed compositing attempts banked below (see the
+sprite-grid stacking section): a coloured ring around a sprite icon is not expressible at any effort,
+and every coloured texture the game ships already has a yield SYMBOL printed on it, so it reads as a
+second icon rather than as a frame.
+
+✅ **THE ANSWER IS THE GAME'S OWN PLOT-ICON SYSTEM** — a registered Controls component that the
+engine anchors at a tile, in the DOM, where a CSS border is just a CSS border:
+
+```js
+import PlotIconsManager from '/core/ui/plot-icons/plot-icons-manager.js';  // DEFAULT export, a SINGLETON
+const attributes = new Map([["data-event-class", eventClass]]);
+PlotIconsManager.addPlotIcon("plot-icon-random-event", location, attributes);
+PlotIconsManager.removePlotIcons("plot-icon-random-event", location);       // location optional = all
+```
+
+- `type` is a **registered Controls component name**; base ships `plot-icon-archeology`,
+  `plot-icon-resource`, `plot-icon-random-event`, `plot-icon-suggested-settlement` under
+  `base-standard/ui/plot-icon/`.
+- **It scales to map-wide use** — base drives it from the continent layer, the random-events layer
+  and the archaeology lens across every revealed plot. That was the open question before committing.
+- ⚠ **ONE ELEMENT PER TILE, not per thing.** `addPlotIcon` places a single element at a plot; lay a
+  row of icons out INSIDE it.
+- ⚠ `Component` and `Controls` are **engine globals, not imports** — `component-support.js` exports
+  nothing at all. The game's own plot icons are written the same way.
+
+**Choosing between this and WorldAnchors (below):** WorldAnchors is a raw anchor you register and
+unregister yourself, good for one-off labels you fully control. `plot-icons` is a MANAGED system with
+add/remove by type and location and base-game lens integration — prefer it for anything per-tile and
+repeated.
+
 ## ⭐ Tile-anchored DOM labels — WorldAnchors (the third map-rendering route)
 
 Sourced 2026-08-22 from the shipping Workshop mod **"City-Tile Labels"** (`pd-building-labels`
 v1.3.0, skar99/Hensteve) — per-tile building labels rendered as REAL HTML, not sprites.
 
-There are THREE ways to draw on the map, and this one was undocumented here until now:
+There are **FOUR** ways to draw on the map (the fourth, `plot-icons`, is documented above):
 
 | route | what it is | text? | styling? |
 |---|---|---|---|
-| World sprites/VFX | `WorldUI` model groups, `addSprite`/`addText`/`addVFXAtPlot` | crude | atlas art only |
+| World sprites/VFX | `WorldUI` model groups, `addSprite`/`addText`/`addVFXAtPlot` | crude | atlas art only — ⛔ **sprites cannot be coloured** |
 | Screen DOM | panels in `#worldanchor`/body | full | full CSS |
 | **Tile-anchored DOM** | **a DOM element the ENGINE pins to a world position** | **full** | **full CSS** |
+| **`plot-icons`** | **the game's own managed per-tile component system** | **full** | **full CSS** |
 
 The mechanism (building-labels.bundle.js:1742):
 
@@ -1798,6 +1841,13 @@ WorldAnchors.UnregisterFixedWorldAnchor(this.worldAnchorHandle);
   Colors section above).
 
 ## ⛔ Sprite-grid stacking is uncontrollable across textures (proven the hard way, 2026-08-23)
+
+➡ **THERE IS A WAY OUT, FOUND LATER — see `plot-icons` above.** Everything in this section stands
+(four attempts, all failed), and 2026-09-13 supplied the reason: `addSprite` accepts only `scale`,
+`alpha`, `angle` and `offset`, so a sprite **cannot be coloured or framed at all**. If you need a
+coloured rim, a border, or controlled layering on a tile, do not fight the sprite grid — use
+`PlotIconsManager.addPlotIcon`, where it is ordinary CSS.
+
 
 Learned across four failed attempts to composite a "red rim around a normal pip" from two disc
 textures in one `WorldUI` sprite grid (bpl-litmus):
