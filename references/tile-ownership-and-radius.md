@@ -125,6 +125,37 @@ which are stale or wrong on this topic.
 > can't be assembled — irrelevant anyway, owned tiles self-work at any distance), and no
 > gameplay-script modinfo action exists in any installed Base/DLC/workshop modinfo.
 
+## 0. ⛔ SETTLEMENT RADIUS BANDS OVERLAP — "one owner per tile" is a bug shape
+
+Any mod that sweeps a ring band around each settlement (candidate tiles, claimable ground, a planner,
+a map overlay) hits this the moment the player founds a **second** settlement: the bands intersect, so
+a tile can sit in two at once. The tempting shape is a `Map<plotIndex, owner>` with a
+`if (owner.has(plotIndex)) continue;` guard — and that silently awards every contested tile to
+whichever settlement came first out of `player.Cities.getCityIds()`, which is **founding order**, so in
+practice always the capital.
+
+⚠ **IT ONLY BITES UNOWNED GROUND.** An already-owned tile answers `GameplayMap.getOwningCityFromXY`
+for exactly one settlement, so there is nothing to contest and the bug hides completely in any test
+run inside existing borders. It appears only out past the working radius — which is exactly where a
+reach mod lives.
+
+⚠⚠ **AND IT PRESENTS AS TWO UNRELATED BUGS.** Downstream, "which settlement owns this tile" usually
+feeds several gates. When the answer is wrong, every gate is wrong in a different direction at once —
+e.g. a feature missing from settlement B's list *and* a row that should have been hidden staying
+visible there. They share one cause; chasing them separately wastes rounds.
+
+**What actually works** (proven in play 2026-09-13, a ring-4/5 build planner):
+- Keep **two** structures: a single default owner for contexts with no settlement in hand (a click on
+  the map carries none), and a **list of every settlement that reaches the tile** for per-settlement UI.
+- Offer a contested tile on **every** eligible settlement's screen and let the player's action decide;
+  record the chosen settlement on the claim, since unowned ground cannot answer the question later.
+- Guard the other direction: once claimed, drop it from every other settlement's list, or two
+  settlements plan the same ground.
+- For the single default: **nearest wins, and a CITY beats a TOWN at any distance.** Towns cannot
+  produce (`CityOnly` projects), so handing contested ground to a nearer town removes it from every
+  list in the game rather than moving it to the right one. Break ties by keeping the incumbent so the
+  answer does not shift between scans.
+
 ## 1. The native cross-city "swap" IS real (wiki says otherwise — it's wrong)
 
 A settlement's **Expand / place-population picker** can reassign a tile that is

@@ -4,6 +4,57 @@ Match the symptom, don't theorize. Civ VII rarely tells you what's wrong, so thi
 the observable behavior to the documented cause and the fix. Work top-down within each
 section — the first causes are the most common.
 
+## Task: the game just patched - is my shipped mod still OK?
+
+⭐ **VERIFY AGAINST THE INSTALLED DATA, NOT THE PATCH NOTES.** Notes are prose: they announce features
+and almost never list a renamed identifier, which is the thing that actually breaks a mod. A renamed
+or deleted name is the classic silent failure - the row is dropped at load, the mod still shows as
+enabled, and the mechanic simply never fires.
+
+**Four checks, in this order. Each answers something the previous one cannot.**
+
+**1. Do all the names we reference still exist?** Collect every ALL-CAPS identifier the mod
+references, subtract the ones it defines itself, and look the rest up in the installed `Base` + `DLC`
+XML. Worked example: `tools/check-patch-compat.py` in the civ7_mods repo.
+
+⛔⛔ **TWO CLASSES OF NAME, AND ONLY ONE IS IN THE XML.**
+  · **Data-declared** - buildings, wonders, civs, techs, traditions. These are rows. Absent from the
+    installed data means genuinely gone, and a mod naming one is broken.
+  · **Engine-side** - `EFFECT_*`, `REQUIREMENT_*`, `COLLECTION_*`. These live in the EXECUTABLE and
+    appear in XML only where base content happens to use them. Judging them by XML produces false
+    alarms: `EFFECT_PLAYER_REPLACE_CONSTRUCTIBLE` is real, shipped, and proven in play, yet appears
+    in no game XML at all because no base modifier uses it.
+  ⭐ **ENGINE-SIDE NAMES CAN STILL BE VERIFIED - GREP THE BINARIES.** They are compiled in as
+    strings: `grep -rl EFFECT_NAME "…/Base/Binaries/Win64/"` hits
+    `Civ7_Win64_DX12_FinalRelease.exe` and the Vulkan build when the effect exists. That turns
+    "unverifiable" into a real check, and is far better evidence than an old test record.
+
+**2. Load a game with the mod on, then read `Database.log`.** Look for
+`[gameplay]: Passed Validation.` - that means the gameplay DB built with the mod's components applied
+and no foreign key was dropped. ⚠ The frontend/localization validations pass long before gameplay
+does; only the `[gameplay]` line is about your content.
+
+**3. Read `UI.log`** if the mod touches UI - the highest-risk area across a patch, because base UI
+gets refactored. Look for `JS Error`, `SOURCE ERROR`, and the mod's own startup lines.
+
+**4. Diff the CONTENT counts** to find what the patch added: wonders, buildings, civs. A mod that
+ENUMERATES constructibles (a generator that makes one project per building) needs regenerating;
+a mod that does not, does not care.
+
+⚠ **ATTRIBUTE EVERY WARNING BEFORE REPORTING IT.** In one 1.5 pass the logs held `Warning: Apply
+Actions` for `gaul-text` and `iceland` (base-game DLC), three `width: max-content` warnings that
+fired BEFORE the mod's components applied, and a file literally named `StartupErrorMessages.xml`
+matching a grep for "error". None were the mod's. Check the timestamp against
+`Applying mod components` and read the line AFTER a CSS warning - Coherent prints the source file
+on the following line.
+
+⚠ **`Unable to parse declaration` IS COSMETIC, AND USUALLY NOT NEW.** Coherent/Gameface rejects
+`display:inline-block`, `display:inline-flex`, `align-items:baseline` and `width:max-content`; the
+declaration is dropped and layout falls back. Without a pre-patch log you cannot tell whether a
+patch introduced it - look at the actual panel and decide, rather than assuming a regression.
+➡ The durable fix is the same one this engine keeps teaching: **lay out with flex, not with inline
+anything.**
+
 ## Symptom: mod doesn't appear / shows enabled but does NOTHING
 
 The mod is discovered and toggled on, but no effect in-game. First, confirm whether it

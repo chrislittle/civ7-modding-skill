@@ -1235,7 +1235,7 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   before the stylesheet, never after.
 - **⛔ Your class names share one global namespace with the game's utility classes — pick a colliding
   one and the game's rule wins.** A class literally named `hidden` inherited the base `.hidden
-  {display:none}` and a third element simply never drew. Prefix every class (`.bpl-ch-row`), and never
+  {display:none}` and a third element simply never drew. Prefix every class (`.rings-ch-row`), and never
   use a bare English word that reads like a utility (`hidden`, `active`, `selected`, `open`, `small`).
 - **`display: grid` collapses to block.** Grid children stack full-width as if the property
   were never set (proven: a 3-column card grid deployed as stacked rows). Multi-column layouts
@@ -1367,7 +1367,7 @@ Things this engine's renderer eats SILENTLY — no error, just wrong layout:
   (bad import path is the classic).
 - **⛔ ONE MODULE'S SyntaxError SILENTLY DELETES EVERY MODULE THAT IMPORTS IT — and the symptom
   looks like a missing feature, not a crash.** Proven 2026-08-17: a stray duplicated method signature
-  in `bpl-outer.js` produced `JS Error: … SyntaxError: Unexpected token '{'` plus a `SOURCE ERROR` for
+  in `rings-outer.js` produced `JS Error: … SyntaxError: Unexpected token '{'` plus a `SOURCE ERROR` for
   *both* that file and the file importing it. Nothing else appeared in-game; the visible symptom was
   simply *"there are no buttons"*. **Read `Logs/UI.log` FIRST** — `grep <your-mod-prefix> UI.log` gives
   the file and line in one step, where reasoning from the symptom sends you auditing APIs that were
@@ -1582,8 +1582,27 @@ element. This is how to make a mod panel/badge match the active player's colors.
   relative to every web/hex habit, and nothing errors: you just get the wrong colour and go
   looking for a bug elsewhere (a Library blue drew as orange, 2026-08-16). The `{x,y,z,w}` float
   form used by `addPlots` is plain RGBA and does **not** swap — only the packed-int form does.
-- **⚠⚠ `color: var(--x)` IS IGNORED in this Coherent build (the big one — e.g. a custom dashboard,
-  2026-07-14, ~10 debug rounds).** A custom property set on an element *does* inherit to
+- **⚠⚠ CONTRADICTED ON 1.4.2 — READ BOTH ENTRIES BEFORE ACTING (2026-09-13).** The claim below is
+  from 2026-07-14. A tracker panel built on 1.4.2 themes almost entirely through `var()`: six
+  identity families redefine `--plate` / `--bas` / `--chalk` in plain CSS classes, rules like
+  `.x-plate { background-color: var(--plate); color: var(--plate-ink) }` paint correctly, and when
+  the runtime overwrote the inline `--plate-ink` the title text changed colour with it. So on this
+  build `color: var(--x)` **does** resolve, from both class-declared and inline custom properties.
+  What failed in the same session was the **opposite** half of the entry below — see the next bullet.
+  ⚠ Do not assume either behaviour. **The robust pattern, which is correct under both:** resolve the
+  colour in JS, keep it in a variable, and use that variable for anything JS generates (SVG
+  attributes, inline styles); let CSS `var()` handle the purely declarative surfaces.
+- **⚠⚠ DO NOT READ A CUSTOM PROPERTY BACK OUT OF THE DOM.** `getComputedStyle(el).getPropertyValue('--x')`
+  returned **empty** for a property set inline on that element's PARENT, on 1.4.2 — while CSS `var()`
+  on the very same element resolved the same property correctly. The symptom is nasty: the read has a
+  `|| fallback` after it, so it never throws and never logs; you silently ship the hardcoded fallback.
+  It cost two rounds on one panel — a close button drew in a dark slate fallback that happened to look
+  deliberate on light plates and vanished on a dark one, and the identical mistake had already been
+  found and annotated a few lines away in the same file for a different element.
+  ⚠ This directly contradicts the 2026-07-14 note below that `getComputedStyle(child)` returns the
+    parent's value. One of the two is build-dependent; neither is worth betting on. Keep the resolved
+    value in a JS variable instead of asking the DOM for it back.
+- **The 2026-07-14 entry, kept verbatim:** A custom property set on an element *does* inherit to
   descendants (confirmed: `getComputedStyle(child).getPropertyValue('--x')` returns the
   parent's value), but a declaration like `.foo { color: var(--x) }` **does not use it** —
   the color collapses to inherited/black, and setting the var to any value changes nothing.
@@ -1879,7 +1898,7 @@ coloured rim, a border, or controlled layering on a tile, do not fight the sprit
 
 
 Learned across four failed attempts to composite a "red rim around a normal pip" from two disc
-textures in one `WorldUI` sprite grid (bpl-litmus):
+textures in one `WorldUI` sprite grid (two-rings):
 
 - **Insertion order is NOT draw order** between different textures: drawing disc A then disc B on the
   same spot rendered A on top.
@@ -1894,5 +1913,5 @@ textures in one `WorldUI` sprite grid (bpl-litmus):
 ➡ **If a mark needs controlled layering or styling, do not fight the sprite grid** — use a tintable
 plot VFX (`addVFXAtPlot` + `Color3`, section above; colours render ADDITIVELY and wash out — test in
 game, keep them saturated/dark) or a WorldAnchors DOM label (section above), both of which the caller
-fully controls. The bpl-litmus obsolete mark ended as: plain pips + a deep-crimson hex glow
+fully controls. The two-rings obsolete mark ended as: plain pips + a deep-crimson hex glow
 (`#c31220` via srgbToLinear), with the detail carried in the panel.

@@ -74,6 +74,37 @@ this is a real gate — an AI never sees the project at all.
 ⚠ The inverse arm is what proves it. A requirement that silently defaulted to PASS would have shown
 the human-gated project anyway and looked identical to success.
 
+🏆 **AND CONFIRMED AT FULL SCALE IN A SHIPPING MOD, SAME DAY.** 63 projects — an entire Age's worth —
+each with its own unlock modifier, all delivered through one per-Age `EFFECT_ATTACH_MODIFIERS` wrapper
+bound in `GameModifiers`. Live game, five AI civs: **the human was offered all 63, the AI none.** The
+litmus proved the mechanism; this proved it does not degrade with volume.
+
+### ⭐ HOW TO SEE WHAT AN AI CAN BUILD (no screen shows you this)
+
+The reason an AI-facing gate rots unverified is that **there is no UI anywhere that displays another
+civ's production list**. Ask the engine instead, from any `<UIScripts>` file — it answers for foreign
+cities:
+
+```js
+const r = Game.CityOperations.canStart(city.id, CityOperationTypes.BUILD,
+                                       { ProjectType: project.$index }, false);
+const offered = r && r.Requirements
+              && r.Requirements.FullFailure != true && r.Requirements.MeetsRequirements;
+```
+
+That triple is **literally** the test in base `production-chooser-helpers.js getProjectItems`, so
+`offered === true` means the row would appear in that city's own list. Walk every civ with
+`Players.getAliveMajorIds()` → `Players.get(id)` → `player.Cities.getCityIds()` → `Cities.get(cid)`,
+and read `player.isHuman` to separate them. `city.BuildQueue.getQueue()` shows what is actually queued.
+
+⚠⚠ **ALWAYS COUNT YOUR OWN EMPIRE AS THE CONTROL, AND REPORT "INCONCLUSIVE" WITHOUT IT.** "The AI sees
+zero" is also what you get from a probe that cannot read foreign cities, from projects that failed to
+load, and from an AI that has not founded anything yet. Only **"the human sees some, the AI sees
+none"** is evidence. Count unreadable cities separately from cities that legitimately offer nothing —
+collapsing the two lets a blind probe report a pass.
+⚠ Mirror base's own pre-filter or the counts will not match what is on screen: `getProjectItems` skips
+a `CityOnly` project in a town **before** it ever calls `canStart`.
+
 ⛔ **`<Argument name="ProjectType">` does NOT accept a comma-separated list.** One modifier naming two
 project types unlocked NEITHER (proven the same day). You need **one unlock modifier per project**.
 ⚠⚠ **THE GENERAL LAW: argument list-support is PER-ARGUMENT and never generalises.**
